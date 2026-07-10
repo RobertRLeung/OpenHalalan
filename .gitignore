@@ -1,0 +1,19 @@
+# Scraper run logs
+*.log
+
+# Superseded by data/Local_Election_Winners_2004_2025.csv
+\[OLD\] NLE_Winners_2004_2025.csv
+
+# Local working notes, not for publication
+archive/
+
+# Byte-identical duplicate of data/Local_Election_Winners_2004_2025.csv,
+# which is the canonical tracked copy. Root-anchored so data/ is unaffected.
+/Local_Election_Winners_2004_2025.csv
+
+# Python
+__pycache__/
+*.py[cod]
+
+# macOS
+.DS_Store
