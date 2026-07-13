@@ -1,7 +1,7 @@
-# Data Dictionary — `NLE_Vote_Counts_2022-2025.csv.gz`
+# Data Dictionary — `NLE_Vote_Counts_2019-2025.csv.gz`
 
-Every candidate's votes, **winners and losers alike**, as reported by COMELEC per city and
-municipality. **630,666 rows, 14 columns.** Gzipped (7.8 MB; 82 MB uncompressed — above
+Every candidate's votes, **winners and losers alike**, per city and municipality.
+**1,019,758 rows, 14 columns.** Gzipped (7.8 MB; 82 MB uncompressed — above
 GitHub's 50 MB file limit, hence the compression). `pandas.read_csv` opens it directly.
 
 Built from the per-municipality scrapes in `data/raw_data/`, which remain in the repo as
@@ -11,21 +11,30 @@ the raw record. Rebuild with `python run_all.py`.
 
 ## Coverage
 
-**Temporal. Two cycles only: 2022 and 2025.** There are no vote counts for 2004–2019. The
-winners dataset spans 2004–2025, so the two datasets overlap for only its last two cycles;
-the earlier six cannot be checked against ballots.
+**Temporal. Three cycles: 2019, 2022 and 2025.** There are no vote counts for 2004–2016, so
+those winners cannot be checked against ballots. Extending coverage back to 2010 is tracked
+in issue #3.
 
-| Cycle | Rows | Municipality files |
-|---|---|---|
-| 9 May 2022 | 205,240 | 1,634 |
-| 12 May 2025 | 425,426 | 1,638 |
+| Cycle | Rows | Municipality files | Source |
+|---|---|---|---|
+| 13 May 2019 | 389,092 | 1,634 | ABS-CBN Halalan |
+| 9 May 2022 | 205,240 | 1,634 | COMELEC |
+| 12 May 2025 | 425,426 | 1,638 | COMELEC |
+
+All three land on **1,634 Philippine cities and municipalities** (2025 adds the new BARMM
+Special Geographic Area municipalities), which is an independent check that none is missing
+localities.
+
+**This dataset is now multi-source.** 2019 comes from ABS-CBN, 2022 and 2025 from COMELEC.
+No cycle is covered by more than one source, so there are no cross-source conflicts to
+reconcile — but that changes the moment a second source is added for the same cycle.
 
 2025 has roughly double the rows on the same number of localities because more candidates
 contested the nationwide races.
 
 **Geographic.** 1,407 distinct localities — every city and municipality COMELEC published.
 
-**Offices.** Eleven. Unlike the winners dataset, this **includes the nationwide races**
+**Offices.** Thirteen. Unlike the winners dataset, this **includes the nationwide races**
 (`PRESIDENT`, `VICE PRESIDENT`, `SENATOR`, `PARTY LIST`), each repeated in every
 municipality's file because national races are tallied locally.
 
@@ -39,9 +48,9 @@ municipality's file because national races are tallied locally.
 | `region` | string | Canonical region. |
 | `province` | string | Canonical province or NCR district. |
 | `city` | string | Canonical city / municipality. The tally unit. |
-| `office` | string | One of the 11 canonical offices. **Use this**, not `position`. |
-| `district` | string | Legislative / provincial / council district (`FIRST LEGDIST`, `SECOND PROVDIST`, `LONE DIST`), where the office has one. Null for at-large seats. |
-| `position` | string | COMELEC's raw position string, kept verbatim for traceability. See below. |
+| `position` | string | One of 13 canonical offices, using **the same vocabulary as the winners dataset's `Position`**, so the two are directly joinable. |
+| `district` | string | The jurisdiction the seat is counted in: `LONE`, `FIRST`, `SECOND`, … and the named ones (`BABAK`, `KAPUTIAN`, `SAMAL`, `BACON`, `EAST`, `WEST`). Null for at-large seats. |
+| `raw_position` | string | The source's raw position string, kept verbatim for traceability. |
 | `candidate_name` | string | `SURNAME, FIRST MIDDLE` as reported. Middle names often absent. |
 | `party` | string | Party as reported. `IND` = independent. |
 | `votes` | int | **Votes for this candidate in this locality.** The unit of the dataset. |

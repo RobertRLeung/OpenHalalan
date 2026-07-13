@@ -5,7 +5,7 @@ Two datasets, each independently usable and independently citable.
 | Dataset | File | What | Coverage |
 |---|---|---|---|
 | **Election Winners** | `output/NLE_Winners_2004-2025.csv` | One row per winning candidate per office | 8 cycles, 2004–2025, local + district offices |
-| **Vote Counts** | `output/NLE_Vote_Counts_2022-2025.csv.gz` | Every candidate's votes per municipality, winners and losers | 2 cycles, 2022 & 2025, incl. nationwide races |
+| **Vote Counts** | `output/NLE_Vote_Counts_2019-2025.csv.gz` | Every candidate's votes per municipality, winners and losers | 2 cycles, 2022 & 2025, incl. nationwide races |
 
 Read the dictionary before using either — both document real gaps:
 

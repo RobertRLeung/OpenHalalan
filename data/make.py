@@ -15,10 +15,10 @@ Stages, in dependency order:
 
   compiling   raw scrapes + data/source/ -> data/processed/ (intermediates)
                                          -> data/output/    (the published datasets)
-              1. build_winners_2022.py   raw 2022 -> processed/winners_2022.csv
-              2. build_winners_2025.py   raw 2025 -> processed/winners_2025.csv
-              3. merge_winners.py        source 2004-2019 + both -> output/NLE_Winners_2004-2025.csv
-              4. build_vote_counts.py    all raw scrapes         -> output/NLE_Vote_Counts_2022-2025.csv.gz
+              1. build_vote_counts.py           all raw scrapes -> output/NLE_Vote_Counts_2019-2025.csv.gz
+              2. build_winners_from_ballots.py  vote counts     -> processed/winners_{year}.csv
+              3. merge_winners.py               source 2004-2016 + ballot-derived cycles
+                                                                -> output/NLE_Winners_2004-2025.csv
 
   audit       both datasets -> data/audit/{issues,coverage_*}.csv
               Reports only; never modifies the data.
@@ -39,10 +39,10 @@ STAGES = {
         HERE / "scraping" / "scrape_2025_comelec.py",
     ],
     "compiling": [
-        HERE / "compiling" / "build_winners_2022.py",
-        HERE / "compiling" / "build_winners_2025.py",
-        HERE / "compiling" / "merge_winners.py",
+        # Vote counts first: the winners are DERIVED from them.
         HERE / "compiling" / "build_vote_counts.py",
+        HERE / "compiling" / "build_winners_from_ballots.py",
+        HERE / "compiling" / "merge_winners.py",
     ],
     "audit": [
         HERE / "audit" / "audit.py",

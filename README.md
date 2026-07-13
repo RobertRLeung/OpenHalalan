@@ -16,7 +16,7 @@ Governor, Provincial Board Member, Member of the House of Representatives, Mayor
 Mayor, Councilor. **It contains no nationwide races** — no President, Vice President,
 Senator or Party List.
 
-**2. Vote Counts** — `data/output/NLE_Vote_Counts_2022-2025.csv.gz`
+**2. Vote Counts** — `data/output/NLE_Vote_Counts_2019-2025.csv.gz`
 Every candidate's votes, winners and losers alike, as reported by COMELEC per city and
 municipality. Two cycles only: **2022 and 2025**. These *do* include the nationwide races.
 
