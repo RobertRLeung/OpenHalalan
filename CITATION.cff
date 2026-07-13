@@ -48,8 +48,7 @@ keywords:
   - political dynasties
   - open data
 
-# Swap in the DOI minted by Zenodo for this release, then update README.md and index.md.
-# doi: 10.5281/zenodo.XXXXXXX
+doi: 10.5281/zenodo.21330133
 
 references:
   - type: article
