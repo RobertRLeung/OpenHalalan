@@ -17,13 +17,13 @@ import re
 
 import pandas as pd
 
-from config import OUTPUT, SCRAPED_YEARS, VOTE_COUNTS_CSV, raw_dir
+from config import OUTPUT, VOTE_COUNT_YEARS, VOTE_COUNTS_CSV, raw_dir
 from normalize import (
     NON_GEOGRAPHIC,
     canonical_city,
-    canonical_province,
     canonical_region,
     drop_duplicate_rows,
+    resolve_province,
 )
 
 # COMELEC embeds the locality in the office string, and the two cycles do it DIFFERENTLY:
@@ -40,7 +40,16 @@ from normalize import (
 # Ordered longest-prefix-first: "VICE-MAYOR" must be tested before "MAYOR", and
 # "PROVINCIAL VICE-GOVERNOR" before "PROVINCIAL GOVERNOR".
 OFFICE_PATTERNS = [
+    # BARMM's regional parliament, elected for the first time in 2025. A real office, and
+    # one the winners dataset does not carry (that covers the 7 national/local offices
+    # only). Its districts use a REGDIST suffix.
+    ("BARMM MEMBERS OF THE PARLIAMENT", "BARMM MEMBER OF PARLIAMENT"),
+    ("BARMM PARTY REPRESENTATIVES", "BARMM PARTY REPRESENTATIVE"),
     ("MEMBER, HOUSE OF REPRESENTATIVES", "MEMBER, HOUSE OF REPRESENTATIVES"),
+    # ABS-CBN 2019 calls the office "Congressman". A handful of its contests omit the
+    # detailed string entirely, so the scraper falls back to this bare position name -
+    # those rows carry no district.
+    ("CONGRESSMAN", "MEMBER, HOUSE OF REPRESENTATIVES"),
     ("MEMBER, SANGGUNIANG PANLALAWIGAN", "PROVINCIAL BOARD MEMBER"),
     ("PROVINCIAL BOARD MEMBER", "PROVINCIAL BOARD MEMBER"),
     ("MEMBER, SANGGUNIANG PANLUNGSOD", "COUNCILOR"),  # city council
@@ -62,7 +71,17 @@ OFFICE_PATTERNS = [
     ("PARTY LIST", "PARTY LIST"),
 ]
 
-DISTRICT_RE = re.compile(r"([A-Z]+(?:\s+[A-Z]+)*\s+(?:LEGDIST|PROVDIST|DIST))\s*$")
+# The district identifier, with the redundant suffix stripped.
+#
+# COMELEC writes "FIRST LEGDIST" / "THIRD PROVDIST" / "LONE DIST", but the suffix only
+# restates the office (LEGDIST <-> house member, PROVDIST <-> provincial board, DIST <->
+# councilor), so it carries no information. What matters is the identifier itself: it names
+# the jurisdiction the votes are counted in.
+#
+# Usually an ordinal (LONE, FIRST, SECOND, ...) but NOT always: some councils have named
+# districts (BABAK, KAPUTIAN and SAMAL in the Island Garden City of Samal; BACON in
+# Sorsogon; EAST and WEST). Keep whatever the identifier is.
+DISTRICT_RE = re.compile(r"([A-Z]+(?:\s+[A-Z]+)*?)\s+(?:LEGDIST|PROVDIST|REGDIST|DIST)\s*$")
 
 # Races decided nationwide rather than by the locality reporting them. For these, `rank`
 # is only the candidate's standing WITHIN that locality, not who won the seat.
@@ -71,9 +90,12 @@ NATIONAL_OFFICES = {"PRESIDENT", "VICE PRESIDENT", "SENATOR", "PARTY LIST"}
 
 def split_position(position):
     """
-    Return (canonical_office, district) from COMELEC's location-laden position string.
+    Return (canonical position, district) from a source's location-laden position string.
 
-    Handles both cycles' formats. Unrecognised offices return (None, None) rather than
+    The canonical position uses the SAME vocabulary as the winners dataset's `Position`
+    column, so the two datasets are directly joinable.
+
+    Handles every source's format. Unrecognised offices return (None, None) rather than
     leaking the raw string, so the audit can count them.
     """
     if pd.isna(position):
@@ -81,21 +103,21 @@ def split_position(position):
 
     text = re.sub(r"\s+", " ", str(position).strip().upper())
 
-    office = None
+    position_name = None
     for prefix, canonical in OFFICE_PATTERNS:
         if text.startswith(prefix):
-            office = canonical
+            position_name = canonical
             text = text[len(prefix):]
             break
 
-    if office is None:
+    if position_name is None:
         return None, None
 
     # Whatever follows the office is the locality; the district, if any, trails it.
     remainder = re.sub(r"^\s*(OF\s+)?", "", text).strip()
     match = DISTRICT_RE.search(remainder)
 
-    return office, match.group(1).strip() if match else None
+    return position_name, match.group(1).strip() if match else None
 
 
 def load_year(year):
@@ -116,17 +138,35 @@ def load_year(year):
 
 
 def main():
-    print("Loading raw COMELEC scrapes:")
-    df = pd.concat([load_year(y) for y in SCRAPED_YEARS], ignore_index=True)
+    print("Loading raw scrapes:")
+    df = pd.concat([load_year(y) for y in VOTE_COUNT_YEARS], ignore_index=True)
 
     print("\nnormalising:")
-    offices = [split_position(p) for p in df["position"]]
-    df["office"] = [o[0] for o in offices]
-    df["district"] = [o[1] for o in offices]
-    print(f"  offices parsed out of `position`: {df['office'].nunique()} distinct")
+    # Keep the source's raw string for traceability, but `position` becomes the canonical
+    # office - the same vocabulary the winners dataset uses.
+    df["raw_position"] = df["position"]
+    parsed = [split_position(p) for p in df["position"]]
+    df["position"] = [p[0] for p in parsed]
+    df["district"] = [p[1] for p in parsed]
+
+    # An unrecognised office must never ship as a null: that is how BARMM's parliament
+    # (a real, 1,155-row office) sat silently discarded in an earlier build.
+    unparsed = df[df["position"].isna()]
+    if not unparsed.empty:
+        names = sorted(unparsed["raw_position"].dropna().unique())
+        raise SystemExit(
+            f"\n{len(unparsed):,} rows have an office this script does not recognise:\n"
+            + "\n".join(f"  {n!r}" for n in names[:20])
+            + "\n\nAdd it to OFFICE_PATTERNS rather than letting it through as null."
+        )
+    print(f"  positions canonicalised: {df['position'].nunique()} distinct, none unparsed")
+    print(f"  districts: {df['district'].nunique()} distinct "
+          f"({df['district'].notna().sum():,} rows carry one)")
 
     df["region"] = df["region"].map(canonical_region)
-    df["province"] = df["province"].map(canonical_province)
+    # resolve_province, not canonical_province: the 2019 feed says only "METRO MANILA",
+    # so the NCR district has to be recovered from the city.
+    df["province"] = [resolve_province(p, c) for p, c in zip(df["province"], df["city"])]
     df["city"] = df["city"].map(canonical_city)
 
     # LAV (Local Absentee Voting) is a real nationwide tally, not a place. Mark it so it
@@ -137,7 +177,7 @@ def main():
         print(f"  flagged {non_geo:,} rows as non-geographic tallies "
               f"({', '.join(sorted(NON_GEOGRAPHIC & set(df['province'].dropna())))})")
 
-    df["is_national_race"] = df["office"].isin(NATIONAL_OFFICES)
+    df["is_national_race"] = df["position"].isin(NATIONAL_OFFICES)
 
     # "1.54 %" -> 1.54
     df["percentage"] = pd.to_numeric(
@@ -149,13 +189,17 @@ def main():
     df = drop_duplicate_rows(df, "vote counts")
 
     columns = [
-        "year", "region", "province", "city",
-        "office", "district", "position",
+        "year", "region", "province", "city", "district",
+        "position",
         "candidate_name", "party",
         "votes", "percentage", "rank",
         "is_national_race", "is_geographic",
+        "raw_position",
     ]
-    df = df[columns].sort_values(["year", "region", "province", "city", "office", "rank"])
+    df = df[columns].sort_values(
+        ["year", "region", "province", "city", "position", "votes"],
+        ascending=[True, True, True, True, True, False],
+    )
 
     OUTPUT.mkdir(parents=True, exist_ok=True)
     df.to_csv(VOTE_COUNTS_CSV, index=False)

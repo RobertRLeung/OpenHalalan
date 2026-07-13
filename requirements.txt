@@ -1,5 +1,6 @@
 # Core pipeline (compiling + audit)
 pandas>=2.0
+requests>=2.31
 PyYAML>=6.0
 
 # Scraping only (data/scraping). Not needed for replication from the committed raw data.

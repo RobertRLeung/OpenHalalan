@@ -33,6 +33,7 @@ AUDIT = path("audit")
 
 YEARS = CONFIG["datasets"]["years"]
 SCRAPED_YEARS = CONFIG["datasets"]["scraped_years"]
+VOTE_COUNT_YEARS = CONFIG["datasets"]["vote_count_years"]
 WINNERS_COLUMNS = CONFIG["datasets"]["winners_columns"]
 DROPPED_COLUMNS = CONFIG["datasets"]["dropped_columns"]
 POSITIONS = CONFIG["datasets"]["positions"]

@@ -46,6 +46,14 @@ NCR_DISTRICTS = {
 PROVINCE_RENAMES = {
     # Renamed in 2019; the same province either way.
     "COMPOSTELA VALLEY": "DAVAO DE ORO",
+
+    # ABS-CBN's 2019 feed disambiguates three provinces with a parenthetical. There is NO
+    # consistent rule for which half is the canonical name - sometimes it is the prefix
+    # ("COTABATO"), sometimes the parenthetical ("DAVAO DEL NORTE") - so map them
+    # explicitly rather than trying to strip the brackets.
+    "COTABATO NORTH COT": "COTABATO",
+    "DAVAO DAVAO DEL NORTE": "DAVAO DEL NORTE",
+    "SAMAR WESTERN SAMAR": "SAMAR",
 }
 
 # NOT renames, and deliberately absent from the map above:
@@ -80,6 +88,9 @@ def _fold(value):
     text = unicodedata.normalize("NFKD", str(value))
     text = "".join(c for c in text if not unicodedata.combining(c))  # PENARRUBIA
     text = text.upper().replace("-", " ").replace(",", " ").replace(".", " ")
+    # Brackets become spaces so a parenthetical qualifier folds into one flat key:
+    # "COTABATO (NORTH COT )" -> "COTABATO NORTH COT". See PROVINCE_RENAMES.
+    text = text.replace("(", " ").replace(")", " ")
     text = re.sub(r"\s+", " ", text).strip()
     return text or None
 
@@ -101,6 +112,51 @@ def canonical_province(value):
     if folded in NCR_DISTRICTS:
         return NCR_DISTRICTS[folded]
     return PROVINCE_RENAMES.get(folded, folded)
+
+
+# Metro Manila's 17 LGUs and the NCR legislative district each belongs to.
+#
+# The 2022/2025 COMELEC feeds name the district directly, but the 2019 ABS-CBN feed only
+# says "METRO MANILA". Without this map NCR fragments across cycles again - the exact
+# defect the province canonicalisation exists to prevent.
+NCR_CITY_TO_DISTRICT = {
+    # 1st district IS the City of Manila.
+    "MANILA": "NCR FIRST DISTRICT",
+    # 2nd
+    "MANDALUYONG": "NCR SECOND DISTRICT",
+    "MARIKINA": "NCR SECOND DISTRICT",
+    "PASIG": "NCR SECOND DISTRICT",
+    "SAN JUAN": "NCR SECOND DISTRICT",
+    "QUEZON": "NCR SECOND DISTRICT",  # QUEZON CITY, folded to QUEZON by canonical_city
+    # 3rd
+    "CALOOCAN": "NCR THIRD DISTRICT",
+    "MALABON": "NCR THIRD DISTRICT",
+    "NAVOTAS": "NCR THIRD DISTRICT",
+    "VALENZUELA": "NCR THIRD DISTRICT",
+    # 4th
+    "LAS PINAS": "NCR FOURTH DISTRICT",
+    "MAKATI": "NCR FOURTH DISTRICT",
+    "MUNTINLUPA": "NCR FOURTH DISTRICT",
+    "PARANAQUE": "NCR FOURTH DISTRICT",
+    "PASAY": "NCR FOURTH DISTRICT",
+    "TAGUIG": "NCR FOURTH DISTRICT",
+    "PATEROS": "NCR FOURTH DISTRICT",
+}
+
+# Province values that mean "somewhere in Metro Manila" without saying which district.
+NCR_UMBRELLA = {"METRO MANILA", "NCR", "NATIONAL CAPITAL REGION"}
+
+
+def resolve_province(province, city):
+    """
+    Canonical province, resolving a bare "METRO MANILA" to the city's NCR district.
+
+    Sources that already name the district (COMELEC 2022/2025) pass through unchanged.
+    """
+    prov = canonical_province(province)
+    if prov in NCR_UMBRELLA:
+        return NCR_CITY_TO_DISTRICT.get(canonical_city(city), prov)
+    return prov
 
 
 def canonical_city(value):

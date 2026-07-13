@@ -16,11 +16,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import re
+import unicodedata
+
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "compiling"))
 
-from config import AUDIT, POSITIONS, SCRAPED_YEARS, VOTE_COUNTS_CSV, WINNERS_CSV, YEARS, raw_dir
+from config import (
+    AUDIT,
+    POSITIONS,
+    SCRAPED_YEARS,
+    VOTE_COUNTS_CSV,
+    VOTE_COUNT_YEARS,
+    WINNERS_CSV,
+    YEARS,
+    raw_dir,
+)
 from normalize import NON_GEOGRAPHIC
 
 LEVEL = {
@@ -178,7 +190,7 @@ def audit_votecounts():
     print("=" * 78)
 
     rows = []
-    for year in SCRAPED_YEARS:
+    for year in VOTE_COUNT_YEARS:
         root = raw_dir(year)
         files = sorted(root.rglob("*.csv"))
         print(f"\n{year}: {len(files):,} municipality files under {root.name}/")
@@ -239,7 +251,7 @@ def audit_votecounts():
     special = published[~published["is_geographic"]]
     if not special.empty:
         for prov, grp in special.groupby("province"):
-            offices = ", ".join(sorted(grp["office"].dropna().unique()))
+            offices = ", ".join(sorted(grp["position"].dropna().unique()))
             flag("votecounts", "info", "non-geographic tally category", str(prov),
                  f"{len(grp):,} rows ({grp['votes'].sum():,.0f} votes) under {prov!r} - a "
                  f"nationwide tally, not a place. Offices: {offices}. Excluded from "
@@ -287,31 +299,49 @@ def audit_alignment(winners):
     print("ALIGNMENT: winners vs raw vote counts")
     print("=" * 78)
 
-    for year in SCRAPED_YEARS:
-        raw = pd.concat(
-            [pd.read_csv(f) for f in raw_dir(year).rglob("*.csv")], ignore_index=True
-        )
-        raw_names = set(raw["candidate_name"].dropna().str.strip().str.upper())
+    ballots = pd.read_csv(VOTE_COUNTS_CSV, low_memory=False)
+
+    def fold(value):
+        text = unicodedata.normalize("NFKD", str(value))
+        text = "".join(c for c in text if not unicodedata.combining(c))
+        return re.sub(r"[^A-Z ]", "", text.upper()).strip()
+
+    for year in VOTE_COUNT_YEARS:
+        cast = ballots[ballots["year"] == year]
         won = winners[winners["Year"] == year]
-        won_names = set(won["Full Name"].dropna().str.strip().str.upper())
+        if cast.empty or won.empty:
+            continue
 
-        orphans = won_names - raw_names
-        pct = 100 * len(orphans) / max(len(won_names), 1)
-        print(f"\n{year}: {len(won_names):,} distinct winners, "
-              f"{len(orphans):,} ({pct:.1f}%) not found in the raw vote counts")
+        # Match on (province, surname), NOT the full name: the inherited cycles write
+        # "CARMELO MANUBE ACNAM" where the feeds write "ACNAM, CARMELO", and ballots use
+        # nicknames. Surname-within-province survives both.
+        on_ballot = {
+            (fold(p), fold(str(n).split(",")[0]))
+            for p, n in zip(cast["province"], cast["candidate_name"].fillna(""))
+        }
+        elected = {
+            (fold(p), fold(l))
+            for p, l in zip(won["Province"], won["Last Name"].fillna(""))
+        }
 
-        if orphans:
-            sev = "high" if pct > 1 else "low"
-            flag("alignment", sev, "winner absent from raw vote counts", str(year),
-                 f"{len(orphans):,} of {len(won_names):,} winner names ({pct:.1f}%) "
-                 f"do not appear in the {year} raw scrape")
+        orphans = elected - on_ballot
+        pct = 100 * len(orphans) / max(len(elected), 1)
+        print(f"\n{year}: {len(elected):,} (province, surname) winner keys, "
+              f"{len(orphans):,} ({pct:.1f}%) absent from that province's ballots")
+
+        if pct > 1:
+            flag("alignment", "high", "winners disagree with the ballots", str(year),
+                 f"{len(orphans):,} of {len(elected):,} winners ({pct:.1f}%) have a "
+                 f"surname that appears nowhere on their province's {year} ballots. The "
+                 f"cycles built FROM ballots score 0.0%, so this points at the inherited "
+                 f"source file, not the scrape")
 
     # Cycles in the winners set with no vote counts at all.
     for year in YEARS:
-        if year not in SCRAPED_YEARS:
+        if year not in VOTE_COUNT_YEARS:
             flag("alignment", "info", "no vote counts for this cycle", str(year),
                  f"{year} winners are inherited from the source file; the vote-count "
-                 f"dataset only covers {SCRAPED_YEARS}, so this cycle cannot be verified "
+                 f"dataset covers {VOTE_COUNT_YEARS}, so this cycle cannot be verified "
                  f"against ballots")
 
 
