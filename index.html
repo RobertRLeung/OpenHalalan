@@ -5,6 +5,41 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Open Halalan — The Philippine Election Monitor</title>
 <meta name="description" content="An open, auditable dataset of Philippine national and local election results, 2004–2025 — every winner, every vote count, reproducible from the raw COMELEC scrapes.">
+<meta property="og:title" content="OpenHalalan: The Philippine National and Local Election Dataset">
+<meta property="og:description" content="An open, auditable dataset of Philippine national and local election results, 2004–2025 — every winner, every vote count, reproducible from the raw COMELEC scrapes.">
+<meta property="og:url" content="https://robertrleung.github.io/OpenHalalan/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Dataset",
+  "name": "OpenHalalan: The Philippine National and Local Election Dataset",
+  "description": "Philippine national and local election data, released as a single bundle of two interdependent datasets. NLE_Winners_2004-2025 records every winning candidate for the seven local and district offices (governor, vice governor, provincial board member, member of the House of Representatives, mayor, vice mayor, councilor) across eight election cycles. NLE_Vote_Counts_2016-2025 records every candidate's votes, winners and losers alike, per city and municipality, for 2016, 2019, 2022 and 2025 - including the nationwide races (president, vice president, senator, party list) and the BARMM parliament. The two are released together because they are not independent: the 2019, 2022 and 2025 winners are derived from the vote counts. Everything is reproducible from the committed raw scrapes with a single command (python run_all.py), and a completeness audit ships with the data.",
+  "url": "https://robertrleung.github.io/OpenHalalan/",
+  "license": "https://opendatacommons.org/licenses/odbl/1-0/",
+  "creator": [
+    { "@type": "Person", "name": "Robert Leung" },
+    { "@type": "Person", "name": "Aldie Alejandro" },
+    { "@type": "Person", "name": "Rafael Acuna" },
+    { "@type": "Person", "name": "Jude Buot" },
+    { "@type": "Person", "name": "Clark Go" },
+    { "@type": "Person", "name": "Job Nable" }
+  ],
+  "distribution": [
+    {
+      "@type": "DataDownload",
+      "encodingFormat": "CSV",
+      "contentUrl": "https://doi.org/10.5281/zenodo.17783099"
+    }
+  ],
+  "identifier": "https://doi.org/10.5281/zenodo.17783099",
+  "keywords": ["Philippines", "elections", "COMELEC", "political dynasties", "open data"],
+  "temporalCoverage": "2004/2025",
+  "spatialCoverage": "Philippines"
+}
+</script>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
