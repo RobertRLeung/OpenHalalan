@@ -78,7 +78,7 @@
 <header class="sticky top-0 z-40 backdrop-blur bg-[var(--paper)]/90 border-b hairline">
   <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
     <a href="#top" class="flex items-center gap-2.5 font-display font-semibold text-lg tracking-tight">
-      <span class="inline-flex items-center justify-center rounded-sm" style="background:#000; padding:6px 8px;">
+      <span class="inline-flex items-center justify-center rounded-sm" style="background:#000; width:34px; height:34px;">
         <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
           <line x1="3" y1="16" x2="3" y2="4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
           <line x1="7" y1="16" x2="7" y2="4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
@@ -178,51 +178,18 @@
         <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1" for="filter-year">Election year</label>
         <select id="filter-year" class="font-mono text-sm border hairline bg-[var(--paper)] px-3 py-2 rounded-sm">
           <option value="all">All years</option>
-          <option value="2004">2004</option>
-          <option value="2007">2007</option>
-          <option value="2010">2010</option>
-          <option value="2013">2013</option>
-          <option value="2016">2016</option>
-          <option value="2019">2019</option>
-          <option value="2022">2022</option>
-          <option value="2025" selected>2025</option>
         </select>
       </div>
       <div>
         <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1" for="filter-position">Position</label>
         <select id="filter-position" class="font-mono text-sm border hairline bg-[var(--paper)] px-3 py-2 rounded-sm">
           <option value="all">All positions</option>
-          <option value="President">President</option>
-          <option value="Vice President">Vice President</option>
-          <option value="Senator" selected>Senator</option>
-          <option value="Governor">Governor</option>
-          <option value="Mayor">Mayor</option>
-          <option value="Member, House of Representatives">Member, House of Representatives</option>
         </select>
       </div>
       <div>
         <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1" for="filter-region">Region</label>
         <select id="filter-region" class="font-mono text-sm border hairline bg-[var(--paper)] px-3 py-2 rounded-sm">
           <option value="all">All regions</option>
-          <option value="Nationwide">Nationwide</option>
-          <option value="BARMM">BARMM</option>
-          <option value="Cordillera Administrative Region">Cordillera Administrative Region</option>
-          <option value="National Capital Region">National Capital Region</option>
-          <option value="Negros Island Region">Negros Island Region</option>
-          <option value="Region I">Region I</option>
-          <option value="Region II">Region II</option>
-          <option value="Region III">Region III</option>
-          <option value="Region IV-A">Region IV-A</option>
-          <option value="Region IV-B">Region IV-B</option>
-          <option value="Region V">Region V</option>
-          <option value="Region VI">Region VI</option>
-          <option value="Region VII">Region VII</option>
-          <option value="Region VIII">Region VIII</option>
-          <option value="Region IX">Region IX</option>
-          <option value="Region X">Region X</option>
-          <option value="Region XI">Region XI</option>
-          <option value="Region XII">Region XII</option>
-          <option value="Region XIII">Region XIII</option>
         </select>
       </div>
       <p class="font-mono text-xs text-[var(--ink-soft)] pb-2">Small hand-picked sample from both files — full data on GitHub. National races (President/VP/Senator) show as "Nationwide"; votes shown where available.</p>
@@ -482,11 +449,24 @@ function animateTally(row){
 document.querySelectorAll(".tally-row").forEach(animateTally);
 
 // ---------- Table render + sort ----------
+// The dropdowns are built FROM the data and cascade, so they can only ever offer
+// combinations that exist. They used to be hardcoded with every year and region,
+// most of which the sample has no rows for - picking one silently rendered an empty
+// table, which is what made them look broken.
 const tbody = document.getElementById("results-tbody");
-let currentRows = [];   // populated by applyFilters() on load
+const selYear     = document.getElementById("filter-year");
+const selPosition = document.getElementById("filter-position");
+const selRegion   = document.getElementById("filter-region");
+
+let currentRows = [];
 let sortKey = null, sortAsc = true;
 
 function renderRows(){
+  if(!currentRows.length){
+    tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-[var(--ink-soft)]">
+      No rows match these filters.</td></tr>`;
+    return;
+  }
   tbody.innerHTML = currentRows.map(r => `
     <tr>
       <td class="p-3 font-mono">${r.year}</td>
@@ -494,9 +474,62 @@ function renderRows(){
       <td class="p-3">${r.region}</td>
       <td class="p-3">${r.candidate}</td>
       <td class="p-3">${r.party}</td>
-      <td class="p-3 font-mono">${r.votes === null ? "—" : r.votes.toLocaleString()}</td>
+      <td class="p-3 font-mono">${r.votes === null ? "\u2014" : r.votes.toLocaleString()}</td>
     </tr>
   `).join("");
+}
+
+// Rows matching every filter EXCEPT the one being populated - that is what makes the
+// options cascade.
+function matching(except){
+  const y = selYear.value, p = selPosition.value, g = selRegion.value;
+  return SAMPLE_ROWS.filter(r =>
+    (except === "year"     || y === "all" || String(r.year) === y) &&
+    (except === "position" || p === "all" || r.position === p) &&
+    (except === "region"   || g === "all" || r.region === g)
+  );
+}
+
+function fill(select, values, allLabel){
+  const keep = select.value;
+  const opts = [`<option value="all">${allLabel}</option>`]
+    .concat(values.map(v => `<option value="${v}">${v}</option>`));
+  select.innerHTML = opts.join("");
+  // Keep the selection if it still exists; otherwise fall back to "all".
+  select.value = values.includes(keep) ? keep : "all";
+}
+
+function refreshFilters(){
+  const years = [...new Set(matching("year").map(r => r.year))].sort((a,b) => b - a);
+  const positions = [...new Set(matching("position").map(r => r.position))].sort();
+  const regions = [...new Set(matching("region").map(r => r.region))].sort();
+
+  fill(selYear, years.map(String), "All years");
+  fill(selPosition, positions, "All positions");
+  fill(selRegion, regions, "All regions");
+}
+
+function applyFilters(){
+  refreshFilters();
+  const y = selYear.value, p = selPosition.value, g = selRegion.value;
+  currentRows = SAMPLE_ROWS.filter(r =>
+    (y === "all" || String(r.year) === y) &&
+    (p === "all" || r.position === p) &&
+    (g === "all" || r.region === g)
+  );
+  if(sortKey) sortRows();
+  renderRows();
+}
+
+function sortRows(){
+  currentRows.sort((a,b)=>{
+    const av = a[sortKey], bv = b[sortKey];
+    if(av === null) return 1;
+    if(bv === null) return -1;
+    if(av < bv) return sortAsc ? -1 : 1;
+    if(av > bv) return sortAsc ? 1 : -1;
+    return 0;
+  });
 }
 
 document.querySelectorAll("#results-table th").forEach(th=>{
@@ -504,34 +537,18 @@ document.querySelectorAll("#results-table th").forEach(th=>{
     const key = th.dataset.key;
     sortAsc = (sortKey === key) ? !sortAsc : true;
     sortKey = key;
-    currentRows.sort((a,b)=>{
-      const av = a[key], bv = b[key];
-      if(av === null) return 1;
-      if(bv === null) return -1;
-      if(av < bv) return sortAsc ? -1 : 1;
-      if(av > bv) return sortAsc ? 1 : -1;
-      return 0;
-    });
+    sortRows();
     renderRows();
   });
 });
 
-function applyFilters(){
-  const year = document.getElementById("filter-year").value;
-  const position = document.getElementById("filter-position").value;
-  const region = document.getElementById("filter-region").value;
-  currentRows = SAMPLE_ROWS.filter(r =>
-    (year === "all" || String(r.year) === year) &&
-    (position === "all" || r.position === position) &&
-    (region === "all" || r.region === region)
-  );
-  renderRows();
-}
-document.getElementById("filter-year").addEventListener("change", applyFilters);
-document.getElementById("filter-position").addEventListener("change", applyFilters);
-document.getElementById("filter-region").addEventListener("change", applyFilters);
+[selYear, selPosition, selRegion].forEach(el =>
+  el.addEventListener("change", applyFilters));
 
-// Seed the table from the dropdowns, so what is shown always matches them.
+// Open on the 2025 senators.
+refreshFilters();
+selYear.value = "2025";
+selPosition.value = "Senator";
 applyFilters();
 
 // ---------- Charts ----------
