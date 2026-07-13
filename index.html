@@ -59,7 +59,6 @@
   }
   .stamp{
     border:2px solid var(--stamp); color:var(--stamp);
-    transform:rotate(-3deg);
   }
   table.datatable th, table.datatable td{
     border-bottom:1px solid var(--line);
@@ -162,7 +161,7 @@
         <h2 class="font-display font-semibold italic text-3xl md:text-4xl leading-tight">Data para sa bayan.</h2>
       </div>
       <div class="md:col-span-8 card p-8">
-        <p class="text-base text-[var(--ink-soft)] leading-relaxed">Doing research on the Philippines is hard. Finding the data doesn't have to be. OpenHalalan started as a byproduct of an undergraduate thesis on Philippine political dynasties. It's non-partisan, volunteer-run, and independent — no party, campaign, or government office funds or controls it. One bundled, citable dataset: every winning candidate for seven local &amp; district offices since 2004, plus full candidate-level vote counts since 2016 — winners and losers. Everything rebuilds from committed raw scrapes with <code>python run_all.py</code> — no hidden steps. Static site, no backend, mirrored to Zenodo for a citable DOI on every release.</p>
+        <p class="text-lg text-[var(--ink-soft)] leading-relaxed">Doing research on the Philippines is hard. Finding the data doesn't have to be. OpenHalalan started as a byproduct of an undergraduate thesis on Philippine political dynasties. It's non-partisan, volunteer-run, and independent — no party, campaign, or government office funds or controls it. One bundled, citable dataset: every winning candidate for seven local &amp; district offices since 2004, plus full candidate-level vote counts since 2016 — winners and losers.</p>
       </div>
     </div>
   </div>
@@ -257,7 +256,7 @@
         <tbody id="results-tbody"></tbody>
       </table>
     </div>
-    <p class="mt-3 font-mono text-xs text-[var(--ink-soft)]">Click a column header to sort. Winners only — full candidate-level vote counts (including losers) are in the raw file.</p>
+    <p class="mt-3 font-mono text-sm text-[var(--ink-soft)]">Click a column header to sort. Winners only — full candidate-level vote counts (including losers) are in the raw file.</p>
   </div>
 </section>
 
@@ -270,7 +269,7 @@
       <div class="flex-1">
         <p class="pct-tab text-xs text-[var(--stamp)] mb-3">WORKING PAPER &middot; arXiv:2505.21280</p>
         <h3 class="font-display font-semibold text-xl md:text-2xl mb-2">The Families that Stay Together: A Network Analysis of Dynastic Power in Philippine Politics</h3>
-        <p class="text-base text-[var(--ink-soft)] leading-relaxed">Acuna, R., Alejandro, A., &amp; Leung, R. (2025). Graph-theoretic metrics for clan structure applied to the same election data, testing whether structure — not just dynasty presence — drives development outcomes.</p>
+        <p class="text-lg text-[var(--ink-soft)] leading-relaxed">Acuna, R., Alejandro, A., &amp; Leung, R. (2025). Graph-theoretic metrics for clan structure applied to the same election data, testing whether structure — not just dynasty presence — drives development outcomes.</p>
       </div>
       <span class="btn-ghost shrink-0 inline-block px-5 py-2.5 rounded-sm font-mono text-sm text-center">Read on arXiv ↗</span>
     </a>
@@ -283,11 +282,11 @@
     <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--gold)] mb-3">Data quality</p>
     <h2 class="font-display font-semibold text-3xl md:text-4xl mb-10">Known issues.</h2>
     <div class="card p-6">
-      <ul class="text-base text-[var(--ink-soft)] leading-relaxed list-disc pl-5 space-y-2">
+      <ul class="text-lg text-[var(--ink-soft)] leading-relaxed list-disc pl-5 space-y-2">
         <li>Missing vote count data from 2013 back.</li>
       </ul>
     </div>
-    <p class="mt-4 font-mono text-sm text-[var(--ink-soft)]">Spot something else? See the <a href="https://github.com/RobertRLeung/OpenHalalan" class="underline">audit log</a> or <a href="#questions" class="underline">let us know</a>.</p>
+    <p class="mt-4 font-mono text-base text-[var(--ink-soft)]">Spot something else? See the <a href="https://github.com/RobertRLeung/OpenHalalan" class="underline">audit log</a> or <a href="#questions" class="underline">let us know</a>.</p>
   </div>
 </section>
 
@@ -303,17 +302,17 @@
           <h3 class="font-display font-semibold text-xl">GitHub repository</h3>
           <span class="stamp text-[10px] font-mono uppercase px-2 py-0.5">Latest</span>
         </div>
-        <p class="text-base text-[var(--ink-soft)] leading-relaxed mb-6">Full commit history, the raw COMELEC scrapes, and the one-command pipeline (<code>python run_all.py</code>). Fork it, file a correction, or open an issue.</p>
+        <p class="text-lg text-[var(--ink-soft)] leading-relaxed mb-6">Full commit history, the raw COMELEC scrapes, and the one-command pipeline (<code>python run_all.py</code>). Fork it, file a correction, or open an issue.</p>
         <a href="https://github.com/RobertRLeung/OpenHalalan" class="btn-primary inline-block px-5 py-2.5 rounded-sm font-mono text-sm">Clone on GitHub ↗</a>
       </div>
 
       <div class="card p-8">
         <div class="flex items-center justify-between mb-4">
-          <h3 class="font-display font-semibold text-xl">Zenodo archive</h3>
+          <h3 class="font-display font-semibold text-xl">Zenodo archive (Download)</h3>
           <span class="text-[10px] font-mono uppercase px-2 py-0.5 border hairline" style="color:var(--stamp); border-color:var(--stamp);">v2.0.0 live</span>
         </div>
         <div class="flex flex-wrap gap-3">
-          <a href="https://doi.org/10.5281/zenodo.21330133" class="btn-primary inline-block px-5 py-2.5 rounded-sm font-mono text-sm">Latest record ↗</a>
+          <a href="https://zenodo.org/records/21330133/files/RobertRLeung/OpenHalalan-v2.0.0.zip?download=1" class="btn-primary inline-block px-5 py-2.5 rounded-sm font-mono text-sm">Download dataset (.zip, 72 MB) ↗</a>
           <a href="https://doi.org/10.5281/zenodo.17783100" class="btn-ghost inline-block px-5 py-2.5 rounded-sm font-mono text-sm opacity-60">Old record (deprecated) ↗</a>
         </div>
       </div>
@@ -326,7 +325,7 @@
         <em class="font-display not-italic" style="font-style:italic;">OpenHalalan: The Philippine National and Local Election Dataset</em> (Version 2.0)<br>
         [Data set]. Zenodo. <span>https://doi.org/10.5281/zenodo.21330133</span>
       </blockquote>
-      <p class="text-sm text-[var(--ink-soft)] mt-3">Licensed under the <a href="https://github.com/RobertRLeung/OpenHalalan" class="underline">Open Database License (ODbL) v1.0</a>. Field-level definitions: <a href="https://github.com/RobertRLeung/OpenHalalan/blob/main/data/output/DATA_DICTIONARY_WINNERS.md" class="underline">winners</a> · <a href="https://github.com/RobertRLeung/OpenHalalan/blob/main/data/output/DATA_DICTIONARY_VOTE_COUNTS.md" class="underline">vote counts</a>.</p>
+      <p class="text-base text-[var(--ink-soft)] mt-3">Licensed under the <a href="https://github.com/RobertRLeung/OpenHalalan" class="underline">Open Database License (ODbL) v1.0</a>. Field-level definitions: <a href="https://github.com/RobertRLeung/OpenHalalan/blob/main/data/output/DATA_DICTIONARY_WINNERS.md" class="underline">winners</a> · <a href="https://github.com/RobertRLeung/OpenHalalan/blob/main/data/output/DATA_DICTIONARY_VOTE_COUNTS.md" class="underline">vote counts</a>.</p>
     </div>
   </div>
 </section>
@@ -337,7 +336,7 @@
     <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--gold)] mb-3">Notes</p>
     <h2 class="font-display font-semibold text-3xl md:text-4xl mb-10">From the field.</h2>
     <div class="card p-8 text-center">
-      <p class="text-base text-[var(--ink-soft)]">Field notes on the scrape, the audit, and the fixes go here once the blog is wired up. Nothing published yet — check the <a href="https://github.com/RobertRLeung/OpenHalalan" class="underline">repo</a> for progress in the meantime.</p>
+      <p class="text-lg text-[var(--ink-soft)]">Field notes on the scrape, the audit, and the fixes go here once the blog is wired up. Nothing published yet — check the <a href="https://github.com/RobertRLeung/OpenHalalan" class="underline">repo</a> for progress in the meantime.</p>
     </div>
   </div>
 </section>
