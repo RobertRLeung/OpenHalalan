@@ -62,7 +62,8 @@ municipality's file because national races are tallied locally.
 | `district` | string | The jurisdiction the seat is counted in: `LONE`, `FIRST`, `SECOND`, … and the named ones (`BABAK`, `KAPUTIAN`, `SAMAL`, `BACON`, `EAST`, `WEST`). Null for at-large seats. |
 | `raw_position` | string | The source's raw position string, kept verbatim for traceability. |
 | `candidate_name` | string | `SURNAME, FIRST MIDDLE` as reported. Middle names often absent. |
-| `party` | string | Party as reported. `IND` = independent. |
+| `party` | string | Canonical party code, unified across cycles. `IND` = independent. Coalitions name each member, separated by `/`. Real mergers are not collapsed — see the winners dictionary. |
+| `reported_party` | string | The source's raw party string, kept verbatim for traceability. |
 | `votes` | int | **Votes for this candidate in this locality.** The unit of the dataset. |
 | `percentage` | float | Share of the locality's votes for that office. Numeric (COMELEC's raw `"1.54 %"` string is parsed). |
 | `rank` | int | **COMELEC's alphabetical index — NOT a vote standing.** See the warning below. |

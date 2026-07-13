@@ -37,6 +37,7 @@ from config import (
 from normalize import (
     backfill_region,
     canonical_full_name,
+    canonical_party,
     clean_reported_name,
     drop_duplicate_rows,
     normalize_places,
@@ -124,6 +125,10 @@ def main():
     merged, filled, still_null = backfill_region(merged)
     print(f"  region: backfilled {filled:,} null rows from province "
           f"({still_null:,} still null)")
+
+    before = merged["Party"].nunique()
+    merged["Party"] = merged["Party"].map(canonical_party)
+    print(f"  parties: {before} distinct -> {merged['Party'].nunique()} after canonical naming")
 
     merged = drop_duplicate_rows(merged, "winners")
 

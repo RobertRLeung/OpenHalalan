@@ -22,6 +22,7 @@ from normalize import (
     NON_GEOGRAPHIC,
     canonical_city,
     canonical_full_name,
+    canonical_party,
     canonical_region,
     clean_reported_name,
     drop_duplicate_rows,
@@ -211,6 +212,15 @@ def main():
     df["party"] = [r or p for r, p in zip(recovered, df["party"])]
     if n_recovered:
         print(f"  recovered {n_recovered:,} parties from truncated names")
+
+    # --- parties -----------------------------------------------------------
+    # The same party is spelled several ways across cycles, which makes it look like it
+    # vanished and a candidate look like they switched. Real MERGERS are left alone -
+    # see PARTY_ALIASES.
+    df["reported_party"] = df["party"]
+    before = df["party"].nunique()
+    df["party"] = df["party"].map(canonical_party)
+    print(f"  parties canonicalised: {before} -> {df['party'].nunique()} distinct")
     print(f"  names canonicalised; {df['title'].astype(bool).sum():,} titles lifted out")
 
     # "1.54 %" -> 1.54
@@ -229,7 +239,7 @@ def main():
         "title", "party",
         "votes", "percentage", "rank",
         "is_national_race", "is_geographic",
-        "raw_position", "reported_name",
+        "raw_position", "reported_name", "reported_party",
     ]
     df = df[columns].sort_values(
         ["year", "region", "province", "city", "position", "votes"],

@@ -372,3 +372,122 @@ def canonical_full_name(last, first, middle):
     if last and given:
         return f"{last}, {given}"
     return last or given
+
+
+# ---------------------------------------------------------------------------
+# Parties
+# ---------------------------------------------------------------------------
+# Sources spell the same party several ways across cycles - "LAKAS-CMD", "LAKAS CMD" and
+# "LAKAS"; "PDPLBN" and "PDP LABAN"; "NP", "NACIONALISTA" and "NACIONALISTA PARTY" - which
+# makes a party look like it vanished and a candidate look like they switched.
+#
+# WHAT IS DELIBERATELY *NOT* MERGED
+#
+# Party mergers are real institutional events, not spelling noise. Four DISTINCT entities
+# in the Lakas family alone, none of which may be collapsed into another:
+#   LAKAS      Lakas ng Tao, on its own.
+#   LAKAS-CMD  Lakas-Christian Muslim Democrats - itself a MERGER of Lakas and the CMD.
+#              NOT the same party as plain LAKAS.
+#   KAMPI      a distinct party, 2004-2010.
+#   LKS-KAM    Lakas-Kampi-CMD: the 2009 merger of Lakas-CMD and KAMPI. Exists only in
+#              2010, and KAMPI never appears again afterwards.
+#
+# Collapsing these would erase real mergers and make party-switching analysis wrong in
+# both directions - inventing switches that never happened and hiding ones that did.
+# ONLY spellings of the SAME entity are unified: "LAKAS CMD" is "LAKAS-CMD" with the
+# hyphen dropped, and that is the ONLY thing folded into it.
+PARTY_ALIASES = {
+    "LAKAS CMD": "LAKAS-CMD",       # punctuation only - NOT plain LAKAS
+    "LAKAS KABALIKAT NG MALAYANG PILIPINO CHRISTIAN MUSLIM DEMOCRATS": "LAKAS-CMD",
+
+    "LIBERAL PARTY": "LP",
+    "NACIONALISTA": "NP",
+    "NACIONALISTA PARTY": "NP",
+    "PDP LABAN": "PDPLBN",
+    "PDP-LABAN": "PDPLBN",
+    "PDPLABAN": "PDPLBN",
+
+    # An artefact of COMELEC's 30-character truncation, not a party.
+    "(IND": "IND",
+    "INDEPENDENT": "IND",
+
+    # Punctuation-only variants of the same label. Mostly coalition separators, where a
+    # source writes "KAMPI-UNA" one cycle and "KAMPI/UNA" the next. The slash form wins,
+    # because a hyphen is ambiguous - it is part of the name in LAKAS-CMD.
+    #
+    # These fold ONLY on punctuation, so they can never merge two different parties:
+    # LAKAS and LAKAS-CMD have different keys (LAKAS vs LAKASCMD) and stay distinct.
+    '1 CEBU': '1CEBU',
+    'ABAG-PROMDI': 'ABAG PROMDI',
+    'BALANE-NPC': 'BALANE/NPC',
+    'B.BAYAN': 'BBAYAN',
+    'INA-NPC': 'INA/NPC',
+    'KAMPI-BALANE': 'KAMPI/BALANE',
+    'KAMPI-LDP': 'KAMPI/LDP',
+    'KAMPI-UNA': 'KAMPI/UNA',
+    'KNP-LDP': 'KNP/LDP',
+    'KNP-PMP': 'KNP/PMP',
+    'LAKAS-CMD-BILEG': 'LAKAS-CMD/BILEG',
+    'LAKAS-CMD-LP': 'LAKAS-CMD/LP',
+    'LAKAS-CMDNPC': 'LAKAS-CMD/NPC',
+    'LAKAS-CMD-PDP': 'LAKAS-CMD/PDP',
+    'LDP-KNP': 'LDP/KNP',
+    'LDP MAGDALO': 'LDP/MAGDALO',
+    'LIHOK-LAKAS CMD': 'LIHOK/LAKAS-CMD',
+    'NPC-AIM': 'NPC/AIM',
+    'NPC ALAYON': 'NPC/ALAYON',
+    'NPC-ALAYON': 'NPC/ALAYON',
+    'NPC/ALAYON-PANAGHIUSA': 'NPC/ALAYON PANAGHIUSA',
+    'NPC-LAKAS-CMD': 'NPC/LAKAS-CMD',
+    'NPC-UNA': 'NPC/UNA',
+    'NPK NPC': 'NPK-NPC',
+    'PDP LBN': 'PDPLBN',
+    'PMP-AIM': 'PMP/AIM',
+    'PMP-KNP': 'PMP/KNP',
+    'PMP-NPC': 'PMP/NPC',
+    'REPORMA LM': 'REPORMA-LM',
+    'SARRO-KAMPI': 'SARRO/KAMPI',
+    'SARRO-LAKAS-CMD': 'SARRO/LAKAS-CMD',
+    'SARRO-LDP': 'SARRO/LDP',
+    'UNO-LDP': 'UNO/LDP',
+}
+
+# Only a forward slash is treated as "these are several parties". A hyphen is ambiguous -
+# it is part of the name in LAKAS-CMD but a separator in KAMPI-UNA - so hyphens are left
+# alone except where a slash-spelled twin exists (KAMPI-BALANE / KAMPI/BALANE), which the
+# alias fold below resolves.
+_COALITION_SEP = re.compile(r"\s*/\s*")
+
+
+def canonical_party(label):
+    """
+    One code per party. Coalitions keep every member, separated by "/".
+
+    Returns None for a missing party rather than inventing one.
+    """
+    if pd.isna(label):
+        return None
+
+    text = re.sub(r"\s+", " ", str(label)).strip().upper()
+    if not text:
+        return None
+
+    if text in PARTY_ALIASES:
+        return PARTY_ALIASES[text]
+
+    # A joint endorsement: canonicalise each member, keep them all.
+    if "/" in text:
+        members = [
+            PARTY_ALIASES.get(m.strip(), m.strip())
+            for m in _COALITION_SEP.split(text)
+            if m.strip()
+        ]
+        return "/".join(members)
+
+    return text
+
+
+def is_coalition(label):
+    """True when the reported party names more than one party (a joint endorsement)."""
+    canonical = canonical_party(label)
+    return bool(canonical) and "/" in canonical

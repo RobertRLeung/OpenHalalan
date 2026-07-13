@@ -44,7 +44,7 @@ live in `NLE_Vote_Counts_2016-2025.csv.gz`.
 | `Title` | string | Honorific, where the source gave one: `ATTY.`, `DOC`, `DR.`, `ENGR.`, and the Moro honorifics `DATU`, `BAI`, `HADJI`. Usually empty. |
 | `Full Name` | string | **Canonical `SURNAME, FIRST MIDDLE` in every cycle.** Joins directly against `candidate_name` in the vote-counts dataset. |
 | `Position` | string | One of the seven offices above. |
-| `Party` | string | Party as reported (`LAKAS-CMD`, `PDPLBN`, `IND`, …). Not normalised across cycles. |
+| `Party` | string | Canonical party code. Spellings of the same party are unified across cycles; real mergers are **not** — see below. |
 | `Year` | int | Election year. |
 | `Province` | string | Canonical province or NCR district. Stable across cycles. |
 | `Region` | string | Canonical region. Never null. |
@@ -197,7 +197,33 @@ COMELEC scrapes.
    *less* information in the recent cycles — a real bias risk for kinship inference. **Use
    `Full Name` as the key.**
 
-6. **`Party` is not normalised.** Labels are as-reported; coalitions rename and merge.
+6. **`Party` is canonicalised, but party lineages are deliberately NOT merged.**
+
+   Spellings of the same party are unified (`PDP LABAN` → `PDPLBN`, `NACIONALISTA PARTY` →
+   `NP`, `LAKAS CMD` → `LAKAS-CMD`), as are punctuation-only variants of coalition labels
+   (`KAMPI-UNA` → `KAMPI/UNA`). That took the winners dataset from 445 labels to 397.
+
+   **Mergers between parties are real institutional events, not spelling noise, and are
+   left intact.** Four distinct entities exist in the Lakas family alone:
+
+   | Code | What it is | Cycles |
+   |---|---|---|
+   | `LAKAS` | Lakas ng Tao, on its own | 2013, 2019–2025 |
+   | `LAKAS-CMD` | Lakas–Christian Muslim Democrats — itself a merger of Lakas and the CMD, and **not** the same party as plain `LAKAS` | 2004–2010, 2016 |
+   | `KAMPI` | a distinct party | 2004–2010 |
+   | `LKS-KAM` | Lakas–Kampi–CMD: the 2009 merger of Lakas-CMD and KAMPI. Exists **only** in 2010, after which KAMPI never appears again | 2010 |
+
+   Collapsing these would erase the mergers and make party-switching analysis wrong in both
+   directions — inventing switches that never happened and hiding ones that did. If your
+   analysis wants a single "Lakas lineage", build that mapping yourself, as a stated
+   research choice.
+
+7. **Coalition labels name several parties**, separated by `/` (`LAKAS-CMD/NPC`,
+   `KAMPI/BALANE`). These are joint endorsements, not a party — 2,041 rows (1.5%), all in
+   2004–2013. A candidate endorsed by two parties has not switched party.
+
+8. **The long tail is real.** 90.5% of rows sit in the top 20 labels; the remaining ~380 are
+   genuine local and regional parties, not noise, and are left as reported.
 
 7. **Boundary changes** (correct, not errors): **Maguindanao** split into del Norte and del
    Sur *after* the May 2022 election, so 2004–2022 correctly show one undivided province and
