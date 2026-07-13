@@ -6,6 +6,7 @@
 
 paths:
   # Raw per-municipality COMELEC scrapes (one CSV per city/municipality).
+  raw_2016: data/raw_data/2016
   raw_2019: data/raw_data/2019
   raw_2022: data/raw_data/2022
   raw_2025: data/raw_data/2025
