@@ -44,7 +44,7 @@ Read the data dictionaries before using either dataset — the known gaps matter
 
 > Leung, R., Alejandro, A., Acuna, R., Buot, J., Go, C., & Nable, J. (2026).
 > *OpenHalalan: The Philippine National and Local Election Dataset* (Version 2.0)
-> [Data set]. Zenodo. https://doi.org/10.5281/zenodo.21330133
+> [Data set]. Zenodo. https://doi.org/10.5281/zenodo.21331500
 
 If you are citing the analysis rather than the data:
 

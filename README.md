@@ -76,7 +76,7 @@ the winners without the ballots that justify them would obscure their provenance
 
 > Leung, R., Alejandro, A., Acuna, R., Buot, J., Go, C., & Nable, J. (2026).
 > *OpenHalalan: The Philippine National and Local Election Dataset* (Version 2.0)
-> [Data set]. Zenodo. https://doi.org/10.5281/zenodo.21330133
+> [Data set]. Zenodo. https://doi.org/10.5281/zenodo.21331500
 
 ```bibtex
 @dataset{openhalalan2025,
@@ -86,7 +86,7 @@ the winners without the ballots that justify them would obscure their provenance
   year      = {2026},
   version   = {2.0},
   publisher = {Zenodo},
-  doi       = {10.5281/zenodo.21330133},
+  doi       = {10.5281/zenodo.21331500},
   url       = {https://github.com/RobertRLeung/OpenHalalan}
 }
 ```
