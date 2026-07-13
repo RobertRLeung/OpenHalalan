@@ -1,26 +1,62 @@
 # OpenHalalan: The Philippine Election Project
 
-Welcome to OpenHalalan, your open-access resource for Philippine national and local election results.
+Open-access, reproducible Philippine national and local election data.
 
-## About This Project
-OpenHalalan aims to make election data accessible, reproducible, and useful for research and civic inquiry. Our public dataset provides historical results by region, district, and candidate.
+## The data
 
-## Get the Data
-- Download the latest dataset from [this repository](https://github.com/TwoManyB33s/OpenHalalan).
-- Data is in CSV format for easy analysis.
+Two datasets, released together as **one citable bundle**.
+
+**Election Winners, 2004–2025** — every winning candidate for the seven local and district
+offices (governor, vice governor, provincial board member, member of the House of
+Representatives, mayor, vice mayor, councilor), across eight election cycles.
+
+**Vote Counts, 2019–2025** — every candidate's votes, winners *and losers*, for each city
+and municipality. Includes the nationwide races (president, vice president, senator, party
+list) and the BARMM parliament.
+
+They are one bundle because they are not independent: the 2019, 2022 and 2025 winners are
+**derived from the vote counts**. The 2004–2016 winners are inherited from an earlier
+source and cannot be verified against ballots.
+
+[Get the data on GitHub](https://github.com/RobertRLeung/OpenHalalan) — CSV, ready to analyse.
+
+## Reproducible, and honest about its gaps
+
+Everything rebuilds from the committed raw scrapes with one command:
+
+```bash
+pip install -r requirements.txt
+python run_all.py
+```
+
+A completeness audit ships with the data and writes every known gap to
+`data/audit/issues.csv`. Building it surfaced real defects that had been sitting in the
+published data — winners selected alphabetically rather than by votes in 2022, the City of
+Manila missing entirely from that cycle, Samar's 2025 results duplicated from Eastern
+Samar, and 2019 governors filed under the wrong province. All are fixed and documented; the
+gaps we *cannot* fix are written down rather than hidden.
+
+Read the data dictionaries before using either dataset — the known gaps matter:
+[winners](https://github.com/RobertRLeung/OpenHalalan/blob/main/data/output/DATA_DICTIONARY_WINNERS.md) ·
+[vote counts](https://github.com/RobertRLeung/OpenHalalan/blob/main/data/output/DATA_DICTIONARY_VOTE_COUNTS.md)
+
+## How to cite
+
+> Leung, R., Alejandro, A., Acuna, R., Buot, J., Go, C., & Nable, J. (2025).
+> *OpenHalalan: The Philippine National and Local Election Dataset* (Version 2.0)
+> [Data set]. Zenodo. https://doi.org/10.5281/zenodo.XXXXXXX
+
+If you are citing the analysis rather than the data:
+
+> Acuna, R., Alejandro, A., & Leung, R. (2025). *The Families that Stay Together: A Network
+> Analysis of Dynastic Power in Philippine Politics.* arXiv:2505.21280.
 
 ## License
-This dataset is released under the [Open Database License (ODbL) v1.0](https://opendatacommons.org/licenses/odbl/1-0/).
 
-## How to Cite
-Please acknowledge OpenHalalan in your work. Example citation:
+[Open Database License (ODbL) v1.0](https://opendatacommons.org/licenses/odbl/1-0/).
 
-> Robert Rilloraza-Leung. (2025). OpenHalalan: The Philippine Election Project (Version 1.0) [Data set]. GitHub. https://github.com/TwoManyB33s/OpenHalalan
+## Feedback
 
-## Feedback & Contributions
-
-- If you spot errors or have suggestions, please [open an issue](https://github.com/TwoManyB33s/OpenHalalan/issues) or submit a pull request.
-
----
-
-Thank you for supporting open data in the Philippines!
+Spotted an error? [Open an issue](https://github.com/RobertRLeung/OpenHalalan/issues) or
+send a pull request. Corrections are welcome — this session's biggest fixes came from
+exactly that kind of scrutiny.

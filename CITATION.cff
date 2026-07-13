@@ -1,0 +1,66 @@
+cff-version: 1.2.0
+title: "OpenHalalan: The Philippine National and Local Election Dataset"
+message: "If you use this dataset, please cite it as below."
+type: dataset
+
+authors:
+  - family-names: Leung
+    given-names: Robert
+  - family-names: Alejandro
+    given-names: Aldie
+  - family-names: Acuna
+    given-names: Rafael
+  - family-names: Buot
+    given-names: Jude
+  - family-names: Go
+    given-names: Clark
+  - family-names: Nable
+    given-names: Job
+
+abstract: >-
+  Philippine national and local election data, released as a single bundle of two
+  interdependent datasets.
+
+  NLE_Winners_2004-2025 records every winning candidate for the seven local and district
+  offices (governor, vice governor, provincial board member, member of the House of
+  Representatives, mayor, vice mayor, councilor) across eight election cycles.
+
+  NLE_Vote_Counts_2019-2025 records every candidate's votes, winners and losers alike, per
+  city and municipality, for 2019, 2022 and 2025 - including the nationwide races
+  (president, vice president, senator, party list) and the BARMM parliament.
+
+  The two are released together because they are not independent: the 2019, 2022 and 2025
+  winners are DERIVED from the vote counts. Citing the winners without the ballots that
+  justify them would obscure their provenance. The 2004-2016 winners are inherited from an
+  earlier source and cannot be verified against ballots.
+
+  Everything is reproducible from the committed raw scrapes with a single command
+  (`python run_all.py`), and a completeness audit ships with the data.
+
+version: "2.0"
+license: ODbL-1.0
+repository-code: "https://github.com/RobertRLeung/OpenHalalan"
+url: "https://github.com/RobertRLeung/OpenHalalan"
+keywords:
+  - Philippines
+  - elections
+  - COMELEC
+  - political dynasties
+  - open data
+
+# Swap in the DOI minted by Zenodo for this release, then update README.md and index.md.
+# doi: 10.5281/zenodo.XXXXXXX
+
+references:
+  - type: article
+    title: "The Families that Stay Together: A Network Analysis of Dynastic Power in Philippine Politics"
+    authors:
+      - family-names: Acuna
+        given-names: Rafael
+      - family-names: Alejandro
+        given-names: Aldie
+      - family-names: Leung
+        given-names: Robert
+    year: 2025
+    url: "https://arxiv.org/abs/2505.21280"
+    notes: "The research the winners dataset was originally built for."

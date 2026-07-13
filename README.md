@@ -3,7 +3,9 @@
 **OpenHalalan** is an open data initiative to make national and local election results in the Philippines freely accessible for researchers, journalists, policymakers, and the public.
 
 ## About the Project
-This repository contains a comprehensive, curated dataset of Philippine election results from national and local races, published and citable via Zenodo DOI [https://doi.org/10.5281/zenodo.17783100](https://doi.org/10.5281/zenodo.17783100). Our goal is to foster transparency, reproducibility, and wider participation in election research.
+This repository contains a curated, reproducible dataset of Philippine election results from national and local races. Our goal is to foster transparency, reproducibility, and wider participation in election research.
+
+Everything rebuilds from the committed raw scrapes with one command, and a completeness audit ships alongside the data — including an honest account of what is missing. See [How to Cite](#how-to-cite).
 
 ## Dataset Contents
 
@@ -66,47 +68,45 @@ Superseded and one-off scripts are kept in `archive/` and are not part of the pi
 ## License
 This project is licensed under the [Open Database License (ODbL) v1.0](LICENSE).
 
-## How to Cite OpenHalalan Datasets
+## How to Cite
 
-Please cite the appropriate reference depending on which dataset you use:
+Both datasets are released as **one citable bundle under a single DOI**. They are not
+independent: the 2019, 2022 and 2025 winners are *derived* from the vote counts, so citing
+the winners without the ballots that justify them would obscure their provenance.
 
-### 1. Winners Dataset
+> Leung, R., Alejandro, A., Acuna, R., Buot, J., Go, C., & Nable, J. (2025).
+> *OpenHalalan: The Philippine National and Local Election Dataset* (Version 2.0)
+> [Data set]. Zenodo. https://doi.org/10.5281/zenodo.XXXXXXX
 
-If you use the **Winners Dataset**, please cite:
-
-> Rafael Acuna, Aldie Alejandro, and Robert Leung. (2025). The Families that Stay Together: A Network Analysis of Dynastic Power in Philippine Politics. arXiv:2505.21280. https://arxiv.org/abs/2505.21280
-
-Or in BibTeX:
 ```bibtex
-@misc{acuna2025familiesstaytogethernetwork,
-      title={The Families that Stay Together: A Network Analysis of Dynastic Power in Philippine Politics}, 
-      author={Rafael Acuna and Aldie Alejandro and Robert Leung},
-      year={2025},
-      eprint={2505.21280},
-      archivePrefix={arXiv},
-      primaryClass={econ.GN},
-      url={https://arxiv.org/abs/2505.21280}
-}
-```
-
-### 2. Complete Vote Counts Dataset
-
-If you use the **Complete Vote Counts Dataset**, please cite:
-
-> Robert Rilloraza-Leung. (2025). OpenHalalan: The Philippine Election Project (Version 1.0) [Data set]. Zenodo. https://doi.org/10.5281/zenodo.17783100
-
-Or in BibTeX:
-```bibtex
-@dataset{OpenHalalan2025,
-  author    = {Robert Rilloraza-Leung},
-  title     = {OpenHalalan: The Philippine Election Project},
+@dataset{openhalalan2025,
+  author    = {Leung, Robert and Alejandro, Aldie and Acuna, Rafael and
+               Buot, Jude and Go, Clark and Nable, Job},
+  title     = {OpenHalalan: The Philippine National and Local Election Dataset},
   year      = {2025},
-  version   = {1.0},
+  version   = {2.0},
   publisher = {Zenodo},
-  doi       = {10.5281/zenodo.17783100},
-  url       = {https://doi.org/10.5281/zenodo.17783100}
+  doi       = {10.5281/zenodo.XXXXXXX},
+  url       = {https://github.com/RobertRLeung/OpenHalalan}
 }
 ```
+
+Machine-readable metadata lives in [`CITATION.cff`](CITATION.cff). The DOI is a placeholder
+until the Zenodo release is minted.
+
+> **Superseding the old record.** The existing Zenodo DOI
+> [10.5281/zenodo.17783100](https://doi.org/10.5281/zenodo.17783100) predates the audit and
+> contains known defects — winners selected alphabetically rather than by votes in 2022, a
+> missing City of Manila, and Samar's 2025 results duplicated from Eastern Samar. It should
+> be superseded, not cited.
+
+### Citing the research
+
+If you are citing the *analysis* rather than the data, cite the paper:
+
+> Acuna, R., Alejandro, A., & Leung, R. (2025). *The Families that Stay Together: A Network
+> Analysis of Dynastic Power in Philippine Politics.* arXiv:2505.21280.
+> https://arxiv.org/abs/2505.21280
 
 ## Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md).
