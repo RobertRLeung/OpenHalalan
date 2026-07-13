@@ -1,9 +1,49 @@
-# OpenHalalan Dataset Folder
+# OpenHalalan — data
 
-This folder contains raw data files for Philippine National and Local Election Results. There are two files
-- Local_Election_Winners_2004_2025.csv is a record of only _winning_ local elected officials from 2004-2025
-- Separate folder for each election year. COC results are reported at the municipality level.
-- Each file is typically in CSV format.
-- Please see column descriptions at the top of each file, or in the main README.
+Two datasets, each independently usable and independently citable.
 
-If you wish to add new data, follow the guidelines in ../CONTRIBUTING.md.
+| Dataset | File | What | Coverage |
+|---|---|---|---|
+| **Election Winners** | `output/NLE_Winners_2004-2025.csv` | One row per winning candidate per office | 8 cycles, 2004–2025, local + district offices |
+| **Vote Counts** | `output/NLE_Vote_Counts_2022-2025.csv.gz` | Every candidate's votes per municipality, winners and losers | 2 cycles, 2022 & 2025, incl. nationwide races |
+
+Read the dictionary before using either — both document real gaps:
+
+- [`output/DATA_DICTIONARY_WINNERS.md`](output/DATA_DICTIONARY_WINNERS.md)
+- [`output/DATA_DICTIONARY_VOTE_COUNTS.md`](output/DATA_DICTIONARY_VOTE_COUNTS.md)
+
+> ⚠ **`rank` in the vote counts is an ALPHABETICAL index, not a vote standing.** Never pick
+> a winner with it — sort by `votes`. An earlier build made exactly this mistake and
+> selected the alphabetically-first candidate in every 2022 race.
+
+## Layout
+
+```
+data/
+  raw_data/     COMELEC scrapes, one CSV per municipality (the raw record)
+    2022/  2025/
+    2025_position_cleaned/   orphaned; not read by the pipeline
+  source/       upstream 2004-2022 winners inherited from the dynasty paper
+  processed/    intermediates (per-cycle winners) - not the published artefacts
+  output/       THE TWO PUBLISHED DATASETS + their dictionaries
+  scraping/     COMELEC scrapers
+  compiling/    raw -> published datasets
+  audit/        completeness checks + outputs
+  make.py       the single pipeline entry point
+```
+
+Data flows one way: `scraping -> raw_data -> compiling -> processed -> output -> audit`.
+
+## Rebuilding
+
+From the repository root:
+
+```bash
+pip install -r requirements.txt
+python run_all.py
+```
+
+The raw scrapes are committed, so this rebuilds both datasets **without** re-scraping
+COMELEC. See the root `README.md` for the full pipeline and the audit.
+
+To add data, see [`../CONTRIBUTING.md`](../CONTRIBUTING.md).

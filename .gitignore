@@ -17,3 +17,6 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# Stale uncompressed vote-counts build (the published artefact is the .csv.gz)
+data/processed/NLE_Vote_Counts_*.csv

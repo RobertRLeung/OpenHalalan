@@ -1,0 +1,78 @@
+# OpenHalalan pipeline configuration.
+#
+# All paths are relative to the repository root and resolved to absolute paths by
+# config.py. Nothing in the pipeline hardcodes a machine-specific path; edit this file
+# rather than the scripts.
+
+paths:
+  # Raw per-municipality COMELEC scrapes (one CSV per city/municipality).
+  raw_2022: data/raw_data/2022
+  raw_2025: data/raw_data/2025
+
+  # Upstream input: the 2004-2022 winners file inherited from the dynasty paper.
+  # Only its 2004-2019 rows are used; 2022 is superseded by the COMELEC re-scrape.
+  source_winners: data/source/political_dynasty_v8.5.csv
+
+  # Intermediates (per-cycle winners). Not the published artefacts.
+  processed: data/processed
+
+  # The two published datasets live here, cleanly separated from intermediates.
+  output: data/output
+
+  audit: data/audit
+
+datasets:
+  # Published dataset filenames (written to data/output/).
+  winners_file: NLE_Winners_2004-2025.csv
+  vote_counts_file: NLE_Vote_Counts_2022-2025.csv.gz
+
+  # Election cycles present in the winners dataset.
+  years: [2004, 2007, 2010, 2013, 2016, 2019, 2022, 2025]
+
+  # Cycles rebuilt from raw COMELEC scrapes rather than inherited from the source file.
+  # These are also the only cycles the vote-counts dataset covers.
+  scraped_years: [2022, 2025]
+
+  # Columns carried by the published winners dataset.
+  winners_columns:
+    - Last Name
+    - First Name
+    - Middle Name
+    - Full Name
+    - Position
+    - Party
+    - Year
+    - Province
+    - Region
+
+  # Columns dropped from the source file. These are ANALYSIS ARTEFACTS from a prior
+  # paper, not election results, and they are not comparable across cycles:
+  #   Community       - a numeric graph-community id for 2004-2019, but the scraped
+  #                     years wrote the CITY NAME into the same column.
+  #   Position Weight - the 2004-2019 scheme means higher = more powerful (mayor 5.0,
+  #                     councilor 2.0); the scraped years used an inverted rank
+  #                     (house 1.5, municipal 3.0), making mayors and councilors equal.
+  # Recomputing them belongs in the analysis codebase, not in the data release.
+  dropped_columns:
+    - Community
+    - Position Weight
+
+  # The 7 local/district offices in the winners dataset. Nationwide races (President,
+  # Vice President, Senator, Party List) appear in the raw vote counts but NOT here.
+  positions:
+    - GOVERNOR
+    - VICE GOVERNOR
+    - PROVINCIAL BOARD MEMBER
+    - MEMBER, HOUSE OF REPRESENTATIVES
+    - MAYOR
+    - VICE MAYOR
+    - COUNCILOR
+
+# Default number of councilors per municipality when the raw data does not state it.
+compiling:
+  default_councilors: 8
+
+scraping:
+  comelec_2022_url: https://2022electionresults.comelec.gov.ph/#/coc/0
+  comelec_2025_url: https://2025electionresults.comelec.gov.ph/#/coc/0
+  headless: false   # COMELEC blocks headless browsers; keep false

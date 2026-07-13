@@ -1,0 +1,7 @@
+# Core pipeline (compiling + audit)
+pandas>=2.0
+PyYAML>=6.0
+
+# Scraping only (data/scraping). Not needed for replication from the committed raw data.
+selenium>=4.15
+selenium-stealth>=1.0
