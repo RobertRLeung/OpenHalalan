@@ -536,7 +536,9 @@ document.querySelectorAll("#results-table th").forEach(th => {
   th.addEventListener("click", () => {
     if(!DATA) return;
     const key = th.dataset.key;
-    sortAsc = (sortKey === key) ? !sortAsc : true;
+    // Numeric columns are far more useful biggest-first, so they open descending.
+    const numeric = (key === "votes" || key === "year");
+    sortAsc = (sortKey === key) ? !sortAsc : !numeric;
     sortKey = key;
     sortRows();
     renderRows(true);
