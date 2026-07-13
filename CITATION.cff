@@ -38,6 +38,7 @@ abstract: >-
   (`python run_all.py`), and a completeness audit ships with the data.
 
 version: "2.0"
+date-released: "2026-01-01"
 license: ODbL-1.0
 repository-code: "https://github.com/RobertRLeung/OpenHalalan"
 url: "https://github.com/RobertRLeung/OpenHalalan"

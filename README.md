@@ -74,7 +74,7 @@ Both datasets are released as **one citable bundle under a single DOI**. They ar
 independent: the 2016, 2019, 2022 and 2025 winners are *derived* from the vote counts, so citing
 the winners without the ballots that justify them would obscure their provenance.
 
-> Leung, R., Alejandro, A., Acuna, R., Buot, J., Go, C., & Nable, J. (2025).
+> Leung, R., Alejandro, A., Acuna, R., Buot, J., Go, C., & Nable, J. (2026).
 > *OpenHalalan: The Philippine National and Local Election Dataset* (Version 2.0)
 > [Data set]. Zenodo. https://doi.org/10.5281/zenodo.21330133
 
@@ -83,7 +83,7 @@ the winners without the ballots that justify them would obscure their provenance
   author    = {Leung, Robert and Alejandro, Aldie and Acuna, Rafael and
                Buot, Jude and Go, Clark and Nable, Job},
   title     = {OpenHalalan: The Philippine National and Local Election Dataset},
-  year      = {2025},
+  year      = {2026},
   version   = {2.0},
   publisher = {Zenodo},
   doi       = {10.5281/zenodo.21330133},
