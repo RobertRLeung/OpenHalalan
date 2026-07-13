@@ -192,7 +192,13 @@
           <option value="all">All regions</option>
         </select>
       </div>
-      <p class="font-mono text-xs text-[var(--ink-soft)] pb-2">Small hand-picked sample from both files — full data on GitHub. National races (President/VP/Senator) show as "Nationwide"; votes shown where available.</p>
+      <div>
+        <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1" for="filter-province">Province</label>
+        <select id="filter-province" class="font-mono text-sm border hairline bg-[var(--paper)] px-3 py-2 rounded-sm">
+          <option value="all">All provinces</option>
+        </select>
+      </div>
+      <p class="font-mono text-xs text-[var(--ink-soft)] pb-2 max-w-xl">Every winner in the dataset — 139,744 rows, 8 cycles. National races are summed from the ballots and shown as "Nationwide". Vote totals exist only for the ballot-backed cycles (2016 on); earlier ones show an em dash. See <a href="#issues" class="underline">Data quality</a>.</p>
     </div>
 
     <div class="grid lg:grid-cols-5 gap-8 mb-12">
@@ -215,6 +221,7 @@
             <th class="p-3" data-key="year">Year</th>
             <th class="p-3" data-key="position">Position</th>
             <th class="p-3" data-key="region">Region</th>
+            <th class="p-3" data-key="province">Province</th>
             <th class="p-3" data-key="candidate">Candidate</th>
             <th class="p-3" data-key="party">Party</th>
             <th class="p-3" data-key="votes">Votes</th>
@@ -223,7 +230,11 @@
         <tbody id="results-tbody"></tbody>
       </table>
     </div>
-    <p class="mt-3 font-mono text-sm text-[var(--ink-soft)]">Click a column header to sort. Winners only — full candidate-level vote counts (including losers) are in the raw file.</p>
+    <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+      <p class="font-mono text-sm text-[var(--ink-soft)]" id="results-count">Loading the dataset…</p>
+      <button id="load-more" class="btn-ghost px-4 py-2 rounded-sm font-mono text-sm" style="display:none;">Show 100 more</button>
+    </div>
+    <p class="mt-2 font-mono text-sm text-[var(--ink-soft)]">Click a column header to sort. Winners only — full candidate-level vote counts, including losers, are in the raw file.</p>
   </div>
 </section>
 
@@ -249,8 +260,10 @@
     <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--gold)] mb-3">Data quality</p>
     <h2 class="font-display font-semibold text-3xl md:text-4xl mb-10">Known issues.</h2>
     <div class="card p-6">
-      <ul class="text-lg text-[var(--ink-soft)] leading-relaxed list-disc pl-5 space-y-2">
-        <li>Missing vote count data from 2013 back.</li>
+      <ul class="text-lg text-[var(--ink-soft)] leading-relaxed list-disc pl-5 space-y-3">
+        <li>No vote counts from 2013 back. 2013 has no recoverable municipality-level source at all; 2010 exists only as winners-only PDFs covering 83% of towns.</li>
+        <li><strong style="color:var(--ink);">Overseas absentee votes are not in the dataset.</strong> Every total is a sum of the localities inside the Philippines, so nationwide races run slightly under COMELEC's official canvass — Duterte's 2016 presidential total comes to 15.85M here against an official 16.60M. Local races are unaffected.</li>
+        <li>2022's national races are withheld pending a re-scrape. The original 2022 scrape was truncated: it captured 7 of the 10 presidential candidates and none of the party-list race — Leni Robredo, who finished second with roughly 15M votes, is missing from it entirely.</li>
       </ul>
     </div>
     <p class="mt-4 font-mono text-base text-[var(--ink-soft)]">Spot something else? See the <a href="https://github.com/RobertRLeung/OpenHalalan" class="underline">audit log</a> or <a href="#questions" class="underline">let us know</a>.</p>
@@ -330,68 +343,12 @@
 </footer>
 
 <script>
-// ---------- Real winners, combined sample from both files ----------
-// National races: aggregated from data/output/NLE_Vote_Counts_2016-2025.csv.gz
-// Local races: data/output/NLE_Winners_2004-2025.csv (no vote totals in that file, so votes is null)
-// Note: 2022 President/VP omitted here — a real gap was found (Robredo missing from the 2022 President
-// tally in this file), so no "top finishers" list is shown for that race until it's audited.
-const SAMPLE_ROWS = [
-  // 2025 — midterm, no President/VP. Full Senate (12 seats), nationwide.
-  {year:2025, position:"Senator", region:"Nationwide", candidate:"Bong Go", party:"PDPLBN", votes:26866683},
-  {year:2025, position:"Senator", region:"Nationwide", candidate:"Bam Aquino", party:"KNP", votes:20800423},
-  {year:2025, position:"Senator", region:"Nationwide", candidate:"Bato dela Rosa", party:"PDPLBN", votes:20547083},
-  {year:2025, position:"Senator", region:"Nationwide", candidate:"Erwin Tulfo", party:"LAKAS", votes:16994791},
-  {year:2025, position:"Senator", region:"Nationwide", candidate:"Kiko Pangilinan", party:"LP", votes:15202610},
-  {year:2025, position:"Senator", region:"Nationwide", candidate:"Rodante Marcoleta", party:"IND", votes:15051942},
-  {year:2025, position:"Senator", region:"Nationwide", candidate:"Ping Lacson", party:"IND", votes:14971710},
-  {year:2025, position:"Senator", region:"Nationwide", candidate:"Tito Sotto", party:"NPC", votes:14704832},
-  {year:2025, position:"Senator", region:"Nationwide", candidate:"Pia Cayetano", party:"NP", votes:14459661},
-  {year:2025, position:"Senator", region:"Nationwide", candidate:"Camille Villar", party:"NP", votes:13556225},
-  {year:2025, position:"Senator", region:"Nationwide", candidate:"Lito Lapid", party:"NPC", votes:13326442},
-  {year:2025, position:"Senator", region:"Nationwide", candidate:"Imee Marcos", party:"NP", votes:13222309},
-  // 2022 — Senate top 3 (full 12 in raw file)
-  {year:2022, position:"Senator", region:"Nationwide", candidate:"Robin Padilla", party:"PDPLBN", votes:26868462},
-  {year:2022, position:"Senator", region:"Nationwide", candidate:"Loren Legarda", party:"NPC", votes:24236628},
-  {year:2022, position:"Senator", region:"Nationwide", candidate:"Raffy Tulfo", party:"IND", votes:23499765},
-  // 2019 — Senate top 3, no President/VP (midterm)
-  {year:2019, position:"Senator", region:"Nationwide", candidate:"Cynthia Villar", party:"NP", votes:25019410},
-  {year:2019, position:"Senator", region:"Nationwide", candidate:"Grace Poe", party:"IND", votes:21856306},
-  {year:2019, position:"Senator", region:"Nationwide", candidate:"Bong Go", party:"PDPLBN", votes:20333423},
-  // 2016 — President, VP, Senate top 3
-  {year:2016, position:"President", region:"Nationwide", candidate:"Rodrigo Duterte", party:"PDPLBN", votes:15848890},
-  {year:2016, position:"Vice President", region:"Nationwide", candidate:"Leni Robredo", party:"LP", votes:13991976},
-  {year:2016, position:"Senator", region:"Nationwide", candidate:"Frank Drilon", party:"LP", votes:18070426},
-  {year:2016, position:"Senator", region:"Nationwide", candidate:"Joel Villanueva", party:"LP", votes:18034748},
-  {year:2016, position:"Senator", region:"Nationwide", candidate:"Tito Sotto", party:"NPC", votes:16758893},
-  // Local races, real winners from NLE_Winners_2004-2025.csv — no vote totals in that file
-  {year:2004, position:"Governor", region:"Region XIII", candidate:"Erlpe John Amante", party:"LAKAS-CMD", votes:null},
-  {year:2004, position:"Member, House of Representatives", region:"Region XIII", candidate:"Ma. Angelica Rosedell Malbas Amante", party:"LAKAS-CMD", votes:null},
-  {year:2010, position:"Mayor", region:"Region VII", candidate:"Rosemarie Lim Imboy", party:"LKS-KAM", votes:null},
-  {year:2004, position:"Mayor", region:"Region III", candidate:"Evelyn Mejarito Paulino", party:"LAKAS-CMD", votes:null},
-  {year:2010, position:"Mayor", region:"Region VIII", candidate:"Ma Corazon Ellacanao Remandaban", party:"LKS-KAM", votes:null},
-  {year:2016, position:"Mayor", region:"Region V", candidate:"Byron Bravo", party:"NUP", votes:null},
-  {year:2004, position:"Member, House of Representatives", region:"Region X", candidate:"Jurdin Jesus Modina Romualdo", party:"NPC", votes:null},
-  {year:2016, position:"Member, House of Representatives", region:"Region XII", candidate:"Jose Tejada", party:"LP", votes:null},
-  {year:2025, position:"Member, House of Representatives", region:"Region VII", candidate:"Inday Daphne Lagon", party:"LAKAS", votes:null},
-];
-
-const YEARS = [2004,2007,2010,2013,2016,2019,2022,2025];
-// Winning-candidate counts by party, top 5 parties by total wins across all 8 cycles (local races, NLE_Winners file)
-const PARTY_SERIES = {
-  "LP":        [1397,1116,2529,6282,7294, 662, 420, 248],
-  "NPC":       [2526,1720,1394,2244,2079,1863,1860,1797],
-  "LAKAS-CMD": [7329,6086,   0,   0,   0,   0,   0,   0],
-  "NP":        [   9, 161,2582,1722,1370,2636,2551,2031],
-  "PDPLBN":    [ 107, 164,  54,  17,   0,5695,3897, 147],
-};
-const IND_SHARE = [10.6,7.7,11.3,12.2,12.8,10.5,9.3,9.4]; // % of winners with no party, by cycle
-
 // ---------- Tally board count-up (SVG hash marks) ----------
 function drawTally(svg, count){
   svg.innerHTML = "";
   const groups = Math.floor(count/5), remainder = count%5;
   let x = 2;
-  const top = 6, bottom = 18; // 12-unit tall marks, matching the logo's proportions
+  const top = 5, bottom = 27;
   for(let g=0; g<groups; g++){
     for(let i=0;i<4;i++){
       const l = document.createElementNS("http://www.w3.org/2000/svg","line");
@@ -399,6 +356,7 @@ function drawTally(svg, count){
       l.setAttribute("y1", top); l.setAttribute("y2", bottom);
       l.setAttribute("class","tally-mark");
       l.setAttribute("vector-effect","non-scaling-stroke");
+      l.style.strokeWidth = "4.5";
       svg.appendChild(l);
       x += 4;
     }
@@ -408,6 +366,7 @@ function drawTally(svg, count){
     d.setAttribute("class","tally-mark");
     d.setAttribute("stroke","var(--stamp)");
     d.setAttribute("vector-effect","non-scaling-stroke");
+    d.style.strokeWidth = "4.5";
     svg.appendChild(d);
     x += 8;
   }
@@ -417,6 +376,7 @@ function drawTally(svg, count){
     l.setAttribute("y1", top); l.setAttribute("y2", bottom);
     l.setAttribute("class","tally-mark");
     l.setAttribute("vector-effect","non-scaling-stroke");
+    l.style.strokeWidth = "4.5";
     svg.appendChild(l);
     x += 4;
   }
@@ -448,83 +408,109 @@ function animateTally(row){
 
 document.querySelectorAll(".tally-row").forEach(animateTally);
 
-// ---------- Table render + sort ----------
-// The dropdowns are built FROM the data and cascade, so they can only ever offer
-// combinations that exist. They used to be hardcoded with every year and region,
-// most of which the sample has no rows for - picking one silently rendered an empty
-// table, which is what made them look broken.
-const tbody = document.getElementById("results-tbody");
+// ---------- The whole dataset, loaded from explore.json ----------
+// 139,744 winners across 8 cycles. The payload dictionary-encodes position/region/
+// province/party and ships rows as arrays, which takes ~12 MB of CSV down to 1.8 MB
+// gzipped. Rows are rendered a page at a time - 139k <tr> elements would lock the tab.
+const PAGE = 100;
+
+let DATA = null;                    // {positions, regions, provinces, parties, rows}
+let currentRows = [];
+let shown = 0;
+let sortKey = null, sortAsc = true;
+
+const tbody      = document.getElementById("results-tbody");
+const countEl    = document.getElementById("results-count");
+const loadMoreEl = document.getElementById("load-more");
 const selYear     = document.getElementById("filter-year");
 const selPosition = document.getElementById("filter-position");
 const selRegion   = document.getElementById("filter-region");
+const selProvince = document.getElementById("filter-province");
+const SELECTS = [selYear, selPosition, selRegion, selProvince];
 
-let currentRows = [];
-let sortKey = null, sortAsc = true;
+// row = [year, positionIdx, regionIdx, provinceIdx, name, partyIdx, votes|null]
+const YEAR=0, POS=1, REG=2, PROV=3, NAME=4, PARTY=5, VOTES=6;
 
-function renderRows(){
+function label(dict, i){ return i >= 0 ? DATA[dict][i] : "—"; }
+
+function renderRows(reset){
+  if(reset) shown = 0;
+
   if(!currentRows.length){
-    tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-[var(--ink-soft)]">
-      No rows match these filters.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-[var(--ink-soft)]">
+      No winners match these filters.</td></tr>`;
+    countEl.textContent = "0 winners";
+    loadMoreEl.style.display = "none";
     return;
   }
-  tbody.innerHTML = currentRows.map(r => `
+
+  shown = Math.min(shown + PAGE, currentRows.length);
+  const slice = currentRows.slice(0, shown);
+
+  tbody.innerHTML = slice.map(r => `
     <tr>
-      <td class="p-3 font-mono">${r.year}</td>
-      <td class="p-3">${r.position}</td>
-      <td class="p-3">${r.region}</td>
-      <td class="p-3">${r.candidate}</td>
-      <td class="p-3">${r.party}</td>
-      <td class="p-3 font-mono">${r.votes === null ? "\u2014" : r.votes.toLocaleString()}</td>
+      <td class="p-3 font-mono">${r[YEAR]}</td>
+      <td class="p-3">${label("positions", r[POS])}</td>
+      <td class="p-3">${label("regions", r[REG])}</td>
+      <td class="p-3">${label("provinces", r[PROV])}</td>
+      <td class="p-3">${r[NAME]}</td>
+      <td class="p-3">${label("parties", r[PARTY])}</td>
+      <td class="p-3 font-mono">${r[VOTES] === null ? "\u2014" : r[VOTES].toLocaleString()}</td>
     </tr>
   `).join("");
+
+  countEl.textContent =
+    `Showing ${shown.toLocaleString()} of ${currentRows.length.toLocaleString()} winners`;
+  loadMoreEl.style.display = shown < currentRows.length ? "" : "none";
 }
 
 // Rows matching every filter EXCEPT the one being populated - that is what makes the
-// options cascade.
+// dropdowns cascade, so they can only ever offer combinations that actually exist.
 function matching(except){
-  const y = selYear.value, p = selPosition.value, g = selRegion.value;
-  return SAMPLE_ROWS.filter(r =>
-    (except === "year"     || y === "all" || String(r.year) === y) &&
-    (except === "position" || p === "all" || r.position === p) &&
-    (except === "region"   || g === "all" || r.region === g)
+  const y = selYear.value, p = selPosition.value,
+        g = selRegion.value, v = selProvince.value;
+  return DATA.rows.filter(r =>
+    (except === "year"     || y === "all" || String(r[YEAR]) === y) &&
+    (except === "position" || p === "all" || DATA.positions[r[POS]] === p) &&
+    (except === "region"   || g === "all" || DATA.regions[r[REG]] === g) &&
+    (except === "province" || v === "all" || DATA.provinces[r[PROV]] === v)
   );
 }
 
 function fill(select, values, allLabel){
   const keep = select.value;
-  const opts = [`<option value="all">${allLabel}</option>`]
-    .concat(values.map(v => `<option value="${v}">${v}</option>`));
-  select.innerHTML = opts.join("");
-  // Keep the selection if it still exists; otherwise fall back to "all".
+  select.innerHTML = [`<option value="all">${allLabel}</option>`]
+    .concat(values.map(v => `<option value="${v}">${v}</option>`)).join("");
   select.value = values.includes(keep) ? keep : "all";
 }
 
 function refreshFilters(){
-  const years = [...new Set(matching("year").map(r => r.year))].sort((a,b) => b - a);
-  const positions = [...new Set(matching("position").map(r => r.position))].sort();
-  const regions = [...new Set(matching("region").map(r => r.region))].sort();
-
-  fill(selYear, years.map(String), "All years");
-  fill(selPosition, positions, "All positions");
-  fill(selRegion, regions, "All regions");
-}
-
-function applyFilters(){
-  refreshFilters();
-  const y = selYear.value, p = selPosition.value, g = selRegion.value;
-  currentRows = SAMPLE_ROWS.filter(r =>
-    (y === "all" || String(r.year) === y) &&
-    (p === "all" || r.position === p) &&
-    (g === "all" || r.region === g)
-  );
-  if(sortKey) sortRows();
-  renderRows();
+  fill(selYear,
+       [...new Set(matching("year").map(r => r[YEAR]))].sort((a,b) => b-a).map(String),
+       "All years");
+  fill(selPosition,
+       [...new Set(matching("position").map(r => DATA.positions[r[POS]]))].sort(),
+       "All positions");
+  fill(selRegion,
+       [...new Set(matching("region").map(r => DATA.regions[r[REG]]))].sort(),
+       "All regions");
+  fill(selProvince,
+       [...new Set(matching("province").map(r => DATA.provinces[r[PROV]]))].sort(),
+       "All provinces");
 }
 
 function sortRows(){
-  currentRows.sort((a,b)=>{
-    const av = a[sortKey], bv = b[sortKey];
-    if(av === null) return 1;
+  const keyIndex = {year:YEAR, position:POS, region:REG, province:PROV,
+                    candidate:NAME, party:PARTY, votes:VOTES}[sortKey];
+  const text = keyIndex === POS ? "positions"
+             : keyIndex === REG ? "regions"
+             : keyIndex === PROV ? "provinces"
+             : keyIndex === PARTY ? "parties" : null;
+
+  currentRows.sort((a,b) => {
+    let av = a[keyIndex], bv = b[keyIndex];
+    if(text){ av = label(text, av); bv = label(text, bv); }
+    if(av === null) return 1;                 // rows with no vote total sink
     if(bv === null) return -1;
     if(av < bv) return sortAsc ? -1 : 1;
     if(av > bv) return sortAsc ? 1 : -1;
@@ -532,24 +518,59 @@ function sortRows(){
   });
 }
 
-document.querySelectorAll("#results-table th").forEach(th=>{
-  th.addEventListener("click", ()=>{
+function applyFilters(){
+  refreshFilters();
+  const y = selYear.value, p = selPosition.value,
+        g = selRegion.value, v = selProvince.value;
+  currentRows = DATA.rows.filter(r =>
+    (y === "all" || String(r[YEAR]) === y) &&
+    (p === "all" || DATA.positions[r[POS]] === p) &&
+    (g === "all" || DATA.regions[r[REG]] === g) &&
+    (v === "all" || DATA.provinces[r[PROV]] === v)
+  );
+  if(sortKey) sortRows();
+  renderRows(true);
+}
+
+document.querySelectorAll("#results-table th").forEach(th => {
+  th.addEventListener("click", () => {
+    if(!DATA) return;
     const key = th.dataset.key;
     sortAsc = (sortKey === key) ? !sortAsc : true;
     sortKey = key;
     sortRows();
-    renderRows();
+    renderRows(true);
   });
 });
 
-[selYear, selPosition, selRegion].forEach(el =>
-  el.addEventListener("change", applyFilters));
+SELECTS.forEach(el => el.addEventListener("change", applyFilters));
+loadMoreEl.addEventListener("click", () => renderRows(false));
 
-// Open on the 2025 senators.
-refreshFilters();
-selYear.value = "2025";
-selPosition.value = "Senator";
-applyFilters();
+fetch("explore.json")
+  .then(r => r.json())
+  .then(data => {
+    DATA = data;
+    refreshFilters();
+    selYear.value = "2025";
+    selPosition.value = "Senator";
+    applyFilters();
+  })
+  .catch(() => {
+    countEl.textContent = "Could not load the dataset.";
+    tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-[var(--ink-soft)]">
+      Could not load explore.json.</td></tr>`;
+  });
+
+const YEARS = [2004,2007,2010,2013,2016,2019,2022,2025];
+// Winning-candidate counts by party, top 5 parties by total wins across all 8 cycles
+const PARTY_SERIES = {
+  "LP":        [1397,1116,2529,6282,7294, 662, 420, 248],
+  "NPC":       [2526,1720,1394,2244,2079,1863,1860,1797],
+  "LAKAS-CMD": [7329,6086,   0,   0,   0,   0,   0,   0],
+  "NP":        [   9, 161,2582,1722,1370,2636,2551,2031],
+  "PDPLBN":    [ 107, 164,  54,  17,   0,5695,3897, 147],
+};
+const IND_SHARE = [10.6,7.7,11.3,12.2,12.8,10.5,9.3,9.4]; // % of winners with no party
 
 // ---------- Charts ----------
 const inkSoft = "#999999";
