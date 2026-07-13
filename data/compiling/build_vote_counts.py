@@ -44,6 +44,13 @@ OFFICE_PATTERNS = [
     # one the winners dataset does not carry (that covers the 7 national/local offices
     # only). Its districts use a REGDIST suffix.
     ("BARMM MEMBERS OF THE PARLIAMENT", "BARMM MEMBER OF PARLIAMENT"),
+    # ARMM's regional government, elected until 2016. BARMM replaced ARMM in 2019, and its
+    # parliament (above) is the successor to the Regional Legislative Assembly. Kept
+    # distinct rather than merged: they are different institutions under different laws.
+    ("REGIONAL VICE-GOVERNOR", "ARMM REGIONAL VICE GOVERNOR"),
+    ("REGIONAL VICE GOVERNOR", "ARMM REGIONAL VICE GOVERNOR"),
+    ("REGIONAL GOVERNOR", "ARMM REGIONAL GOVERNOR"),
+    ("ASSEMBLYMAN", "ARMM ASSEMBLYMAN"),
     ("BARMM PARTY REPRESENTATIVES", "BARMM PARTY REPRESENTATIVE"),
     ("MEMBER, HOUSE OF REPRESENTATIVES", "MEMBER, HOUSE OF REPRESENTATIVES"),
     # ABS-CBN 2019 calls the office "Congressman". A handful of its contests omit the

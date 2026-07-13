@@ -1,4 +1,4 @@
-# Data Dictionary — `NLE_Vote_Counts_2019-2025.csv.gz`
+# Data Dictionary — `NLE_Vote_Counts_2016-2025.csv.gz`
 
 Every candidate's votes, **winners and losers alike**, per city and municipality.
 **1,019,758 rows, 14 columns.** Gzipped (7.8 MB; 82 MB uncompressed — above
@@ -11,12 +11,13 @@ the raw record. Rebuild with `python run_all.py`.
 
 ## Coverage
 
-**Temporal. Three cycles: 2019, 2022 and 2025.** There are no vote counts for 2004–2016, so
-those winners cannot be checked against ballots. Extending coverage back to 2010 is tracked
-in issue #3.
+**Temporal. Four cycles: 2016, 2019, 2022 and 2025.** There are no vote counts for
+2004–2013, so those winners cannot be checked against ballots. Extending coverage back to
+2010 is tracked in issue #3.
 
 | Cycle | Rows | Municipality files | Source |
 |---|---|---|---|
+| 9 May 2016 | 361,947 | 1,633 | GMA Eleksyon |
 | 13 May 2019 | 389,092 | 1,634 | ABS-CBN Halalan |
 | 9 May 2022 | 205,240 | 1,634 | COMELEC |
 | 12 May 2025 | 425,426 | 1,638 | COMELEC |
@@ -25,16 +26,25 @@ All three land on **1,634 Philippine cities and municipalities** (2025 adds the 
 Special Geographic Area municipalities), which is an independent check that none is missing
 localities.
 
-**This dataset is now multi-source.** 2019 comes from ABS-CBN, 2022 and 2025 from COMELEC.
-No cycle is covered by more than one source, so there are no cross-source conflicts to
-reconcile — but that changes the moment a second source is added for the same cycle.
+**This dataset is multi-source.** 2016 comes from GMA, 2019 from ABS-CBN, 2022 and 2025
+from COMELEC. **No cycle is covered by more than one source**, so there are no cross-source
+conflicts to reconcile — but that changes the moment a second source is added for a cycle
+that already has one.
+
+2016 also carries the **ARMM regional government** (`ARMM REGIONAL GOVERNOR`,
+`ARMM REGIONAL VICE GOVERNOR`, `ARMM ASSEMBLYMAN`), abolished when BARMM replaced ARMM in
+2019. These are kept distinct from BARMM's parliament rather than merged: they are
+different institutions under different laws.
+
+**Known gap: Maconacon, Isabela has no 2016 results.** GMA serves no file for it under any
+spelling. 1,633 of the country's 1,634 localities are present.
 
 2025 has roughly double the rows on the same number of localities because more candidates
 contested the nationwide races.
 
 **Geographic.** 1,407 distinct localities — every city and municipality COMELEC published.
 
-**Offices.** Thirteen. Unlike the winners dataset, this **includes the nationwide races**
+**Offices.** Sixteen. Unlike the winners dataset, this **includes the nationwide races**
 (`PRESIDENT`, `VICE PRESIDENT`, `SENATOR`, `PARTY LIST`), each repeated in every
 municipality's file because national races are tallied locally.
 
@@ -48,7 +58,7 @@ municipality's file because national races are tallied locally.
 | `region` | string | Canonical region. |
 | `province` | string | Canonical province or NCR district. |
 | `city` | string | Canonical city / municipality. The tally unit. |
-| `position` | string | One of 13 canonical offices, using **the same vocabulary as the winners dataset's `Position`**, so the two are directly joinable. |
+| `position` | string | One of 16 canonical offices, using **the same vocabulary as the winners dataset's `Position`**, so the two are directly joinable. |
 | `district` | string | The jurisdiction the seat is counted in: `LONE`, `FIRST`, `SECOND`, … and the named ones (`BABAK`, `KAPUTIAN`, `SAMAL`, `BACON`, `EAST`, `WEST`). Null for at-large seats. |
 | `raw_position` | string | The source's raw position string, kept verbatim for traceability. |
 | `candidate_name` | string | `SURNAME, FIRST MIDDLE` as reported. Middle names often absent. |

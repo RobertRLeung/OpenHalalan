@@ -30,7 +30,7 @@ created by the Maguindanao split) across 18 regions. No nulls.
 | `COUNCILOR` | municipal | city / municipality (by council district where one exists) |
 
 **No nationwide races.** No President, Vice President, Senator or Party List rows. Those
-live in `NLE_Vote_Counts_2019-2025.csv.gz`.
+live in `NLE_Vote_Counts_2016-2025.csv.gz`.
 
 ---
 
@@ -68,8 +68,8 @@ this data, not shipped inside it.
 
 | Cycles | Source |
 |---|---|
-| **2019, 2022, 2025** | **Derived from the ballots** in `NLE_Vote_Counts_2019-2025.csv.gz`: votes are summed within the jurisdiction that elects each seat, and the top candidate(s) win. Fully reproducible and independently checkable. |
-| 2004–2016 | `data/source/political_dynasty_v8.5.csv`, inherited from the dynasty paper. Its own upstream provenance is undocumented, and it **cannot be verified** — no vote counts exist for those cycles. |
+| **2016, 2019, 2022, 2025** | **Derived from the ballots** in `NLE_Vote_Counts_2016-2025.csv.gz`: votes are summed within the jurisdiction that elects each seat, and the top candidate(s) win. Fully reproducible and independently checkable. |
+| 2004–2013 | `data/source/political_dynasty_v8.5.csv`, inherited from the dynasty paper. Its own upstream provenance is undocumented, and it **cannot be verified** — no vote counts exist for those cycles. |
 
 **2019 was rebuilt from ballots because the inherited version was demonstrably wrong.**
 See *Corrections* below.

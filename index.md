@@ -10,12 +10,12 @@ Two datasets, released together as **one citable bundle**.
 offices (governor, vice governor, provincial board member, member of the House of
 Representatives, mayor, vice mayor, councilor), across eight election cycles.
 
-**Vote Counts, 2019–2025** — every candidate's votes, winners *and losers*, for each city
+**Vote Counts, 2016–2025** — every candidate's votes, winners *and losers*, for each city
 and municipality. Includes the nationwide races (president, vice president, senator, party
 list) and the BARMM parliament.
 
 They are one bundle because they are not independent: the 2019, 2022 and 2025 winners are
-**derived from the vote counts**. The 2004–2016 winners are inherited from an earlier
+**derived from the vote counts**. The 2004–2013 winners are inherited from an earlier
 source and cannot be verified against ballots.
 
 [Get the data on GitHub](https://github.com/RobertRLeung/OpenHalalan) — CSV, ready to analyse.

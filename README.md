@@ -18,7 +18,7 @@ Governor, Provincial Board Member, Member of the House of Representatives, Mayor
 Mayor, Councilor. **It contains no nationwide races** — no President, Vice President,
 Senator or Party List.
 
-**2. Vote Counts** — `data/output/NLE_Vote_Counts_2019-2025.csv.gz`
+**2. Vote Counts** — `data/output/NLE_Vote_Counts_2016-2025.csv.gz`
 Every candidate's votes, winners and losers alike, as reported by COMELEC per city and
 municipality. Two cycles only: **2022 and 2025**. These *do* include the nationwide races.
 
@@ -71,7 +71,7 @@ This project is licensed under the [Open Database License (ODbL) v1.0](LICENSE).
 ## How to Cite
 
 Both datasets are released as **one citable bundle under a single DOI**. They are not
-independent: the 2019, 2022 and 2025 winners are *derived* from the vote counts, so citing
+independent: the 2016, 2019, 2022 and 2025 winners are *derived* from the vote counts, so citing
 the winners without the ballots that justify them would obscure their provenance.
 
 > Leung, R., Alejandro, A., Acuna, R., Buot, J., Go, C., & Nable, J. (2025).

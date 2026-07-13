@@ -65,7 +65,10 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
 FIELDS = ["region", "province", "city", "position", "rank",
           "candidate_name", "party", "votes", "percentage"]
 
-# Metro Manila's LGUs and the NCR district GMA files them under.
+NCR_UMBRELLA = {"METRO MANILA", "NCR", "NATIONAL CAPITAL REGION"}
+
+# Metro Manila's LGUs and the NCR district GMA files them under. Keys cover both the
+# 2019 roster's spellings ("QUEZON CITY") and the "CITY OF X" form.
 NCR = {
     "CITY OF MANILA": "NATIONAL CAPITAL REGION - MANILA",
     "CITY OF MANDALUYONG": "NATIONAL CAPITAL REGION - SECOND DISTRICT",
@@ -83,8 +86,29 @@ NCR = {
     "CITY OF PARAÑAQUE": "NATIONAL CAPITAL REGION - FOURTH DISTRICT",
     "PASAY CITY": "NATIONAL CAPITAL REGION - FOURTH DISTRICT",
     "CITY OF TAGUIG": "TAGUIG - PATEROS",
+    "TAGUIG": "TAGUIG - PATEROS",
     "PATEROS": "TAGUIG - PATEROS",
+    "MANILA": "NATIONAL CAPITAL REGION - MANILA",
+    "MANDALUYONG": "NATIONAL CAPITAL REGION - SECOND DISTRICT",
+    "MARIKINA": "NATIONAL CAPITAL REGION - SECOND DISTRICT",
+    "PASIG": "NATIONAL CAPITAL REGION - SECOND DISTRICT",
+    "SAN JUAN": "NATIONAL CAPITAL REGION - SECOND DISTRICT",
+    "CALOOCAN": "NATIONAL CAPITAL REGION - THIRD DISTRICT",
+    "MALABON": "NATIONAL CAPITAL REGION - THIRD DISTRICT",
+    "NAVOTAS": "NATIONAL CAPITAL REGION - THIRD DISTRICT",
+    "VALENZUELA": "NATIONAL CAPITAL REGION - THIRD DISTRICT",
+    "LAS PINAS": "NATIONAL CAPITAL REGION - FOURTH DISTRICT",
+    "CITY OF LAS PINAS": "NATIONAL CAPITAL REGION - FOURTH DISTRICT",
+    "MAKATI": "NATIONAL CAPITAL REGION - FOURTH DISTRICT",
+    "MUNTINLUPA": "NATIONAL CAPITAL REGION - FOURTH DISTRICT",
+    "PARANAQUE": "NATIONAL CAPITAL REGION - FOURTH DISTRICT",
+    "CITY OF PARANAQUE": "NATIONAL CAPITAL REGION - FOURTH DISTRICT",
+    "PASAY": "NATIONAL CAPITAL REGION - FOURTH DISTRICT",
 }
+
+
+# NCR districts that contain exactly one city, so GMA files them with no city component.
+DISTRICT_IS_THE_CITY = {"NATIONAL CAPITAL REGION - MANILA"}
 
 
 def slug(text):
@@ -119,14 +143,30 @@ def name_variants(region, province, city):
     guessing which one GMA used.
     """
     seen, out = set(), []
-    cities = [
-        city,
-        re.sub(r"\s+", " ", city).strip(),           # collapse runs of spaces
-        re.sub(r"\s*\(.*?\)\s*", "", city).strip(),   # drop a parenthetical
-        city.replace("'", ""),                       # BROOKE'S POINT vs BROOKES POINT
-        re.sub(r"([A-Z])S ", r"\1'S ", city, count=1),  # ...and the reverse
-    ]
-    for c in cities:
+
+    # A district that IS a single city carries no city component at all: Manila's file is
+    # NCR_NATIONAL_CAPITAL_REGION_-_MANILA, with nothing after it.
+    if province in DISTRICT_IS_THE_CITY:
+        out.append(slug(f"{region}_{province}"))
+
+    bases = {city}
+    bases.add(re.sub(r"\s+", " ", city).strip())            # collapse runs of spaces
+    bases.add(re.sub(r"\s*\(.*?\)\s*", "", city).strip())    # drop a parenthetical
+    # ...and try the parenthetical ITSELF: the roster carries the current name with the
+    # old one in brackets ("AMAI MANABILANG (BUMBARAN)"), but in 2016 the place was still
+    # BUMBARAN, which is the only name GMA knows it by.
+    alt = re.search(r"\((.*?)\)", city)
+    if alt:
+        bases.add(alt.group(1).strip())
+    bases.add(city.replace("'", ""))                        # BROOKE'S POINT / BROOKES POINT
+    # GMA writes the bare name where the locality index writes "CITY OF TAGUIG".
+    for c in list(bases):
+        bases.add(re.sub(r"^CITY OF\s+", "", c).strip())
+        bases.add(re.sub(r"\s+CITY$", "", c).strip())
+
+    for c in bases:
+        if not c:
+            continue
         base = slug(f"{region}_{province}_{c}")
         for candidate in (base, re.sub(r"_+", "_", base)):  # collapse runs of underscores
             if candidate not in seen:
@@ -192,48 +232,82 @@ def _fold_city(name):
     return re.sub(r"[^A-Z0-9]", "", n)
 
 
+# NCR keyed by folded city name, so "MALABON CITY", "CITY OF MALABON" and "MALABON"
+# all resolve to the same district.
+NCR_FOLDED = None
+
+
+def _ncr_district(city):
+    """NCR district for a city, tolerant of CITY OF X / X CITY / X spellings."""
+    global NCR_FOLDED
+    if NCR_FOLDED is None:
+        NCR_FOLDED = {_fold_city(k): v for k, v in NCR.items()}
+    return NCR.get(city) or NCR_FOLDED.get(_fold_city(city))
+
+
 def load_localities():
-    """(region, gma_province, city, real_province) for every 2016 locality."""
+    """
+    (region, gma_province, city, real_province) for every 2016 locality.
+
+    The locality list comes from our OWN 2019 scrape, not from ABS-CBN's 2016 index.
+
+    ABS-CBN files independent cities under a province of their own name ("BUTUAN CITY"
+    rather than Agusan del Norte), which has no region in GMA's map, so 31 of the
+    country's largest cities - Cebu, Davao, Baguio, Iloilo, Bacolod, Zamboanga - were
+    being silently dropped before they were ever requested. The 2019 scrape is the
+    authoritative 1,634-locality roster and puts every city under its real province.
+
+    Only the REGION is taken from GMA (its 2016 map still says ARMM, not BARMM).
+    """
     regions = requests.get(GMA_REGIONS, headers=HEADERS, timeout=30).json()
     province_region = {p["comelec_name"].upper(): p["region"].upper() for p in regions}
-
     folded = {_fold(name): name for name in province_region}
-    # Independent cities only: GMA promotes them to the province level.
-    independent = {_fold_city(name): name for name in province_region if "CITY" in name}
 
-    index = requests.get(ABSCBN_LOCATIONS, headers=HEADERS, timeout=60).json()
-    entries = index["location"] if isinstance(index, dict) else index
+    roster = raw_dir(2019)
+    if not roster.exists():
+        sys.exit(f"need the 2019 scrape as the locality roster: {roster} is missing")
 
     out, unmapped = [], set()
-    for entry in entries:
-        for c in entry.get("city", []):
-            province = c["locationname"].split(",")[-1].strip().upper()
-            if province.startswith("WHOLE"):
-                continue  # a province-level aggregate, not a locality
-            city = c["city"].upper()
+    seen = set()
+    for f in sorted(roster.rglob("*.csv")):
+        with f.open(encoding="utf-8") as fh:
+            row = next(csv.DictReader(fh), None)
+        if not row:
+            continue
 
-            if province == "METRO MANILA":
-                bucket = NCR.get(city)
-            elif province in province_region:
-                bucket = province                       # exact match wins
-            elif _fold(province) in folded:
-                bucket = folded[_fold(province)]
-            elif _fold_city(city) in independent:
-                bucket = independent[_fold_city(city)]  # an independent city
-            else:
-                bucket = province
-            if not bucket:
-                continue
+        province = (row["province"] or "").strip().upper()
+        city = (row["city"] or "").strip().upper()
+        if (province, city) in seen:
+            continue
+        seen.add((province, city))
 
-            region = province_region.get(bucket) or MISSING_FROM_GMA_MAP.get(_fold(province).replace("ISLANDS", " ISLANDS")) \
-                or MISSING_FROM_GMA_MAP.get(province)
-            if not region:
-                unmapped.add(province)
-                continue
-            out.append((region, bucket, city, province))
+        if province in NCR_UMBRELLA:
+            # The roster spells these "MALABON CITY" / "CITY OF MALABON" / "MALABON".
+            bucket = _ncr_district(city)
+        elif province in province_region:
+            bucket = province
+        elif _fold(province) in folded:
+            bucket = folded[_fold(province)]
+        elif province in MISSING_FROM_GMA_MAP:
+            bucket = province      # a province GMA's map omits; region supplied below
+        else:
+            bucket = None
+
+        if not bucket:
+            unmapped.add(f"{city}, {province}")
+            continue
+
+        region = province_region.get(bucket) or MISSING_FROM_GMA_MAP.get(province)
+        if not region:
+            unmapped.add(f"{city}, {province}")
+            continue
+
+        out.append((region, bucket, city, province))
 
     if unmapped:
-        print(f"  WARNING: no region for {sorted(unmapped)} - those localities are skipped")
+        print(f"  WARNING: {len(unmapped)} localities could not be mapped to a GMA region:")
+        for u in sorted(unmapped):
+            print(f"    {u}")
     return out
 
 
