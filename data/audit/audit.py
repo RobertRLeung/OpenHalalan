@@ -101,8 +101,15 @@ def audit_winners():
     coverage.to_csv(AUDIT / "coverage_winners.csv", index=False)
 
     # --- null columns -------------------------------------------------------
+    # Optional by nature: most people have no honorific, and the ballot feeds rarely
+    # report a middle name. An empty value here is a fact about the person, not a defect
+    # in the data.
+    OPTIONAL = {"Title", "Middle Name"}
+
     print("\nnull values by cycle:")
     for col in df.columns:
+        if col in OPTIONAL:
+            continue
         nulls = df[df[col].isna()]["Year"].value_counts().sort_index()
         if nulls.empty:
             continue

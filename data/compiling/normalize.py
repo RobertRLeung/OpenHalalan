@@ -207,3 +207,168 @@ def normalize_places(df, province="Province", region="Region", city=None):
     if city and city in df.columns:
         df[city] = df[city].map(canonical_city)
     return df
+
+
+# ---------------------------------------------------------------------------
+# Candidate names
+# ---------------------------------------------------------------------------
+# Titles, not names. "ATTY. BEL TANYAG" is an attorney called Bel, and an earlier build
+# recorded ATTY. as her first name. DATU, BAI, HADJI and SULTAN are Moro honorifics that
+# carry real meaning, so titles are moved into a `Title` field rather than discarded.
+#
+# JR/SR/II/III are deliberately absent: they are generational suffixes, part of the name.
+TITLES = {
+    "ATTY", "DR", "DOC", "DOKTOR", "ENGR", "ARCH", "PROF",
+    "HON", "FR", "REV", "PASTOR", "BROTHER",
+    "CAPT", "COL", "GEN", "MAJ", "SGT", "LT",
+    "DATU", "BAI", "HADJI", "HAJI", "SULTAN", "SHEIK",
+    "MR", "MRS", "MS",
+}
+
+_TRAILING_PAREN = re.compile(r"\s*\(([^)]{1,20})\)\s*$")
+
+# An UNCLOSED trailing bracket. COMELEC truncates candidate_name at 30 characters, so a
+# long name loses the closing bracket and the party column comes back empty:
+#   "SANTANDER-DELOS REYES,LOVE(PFP"
+# Whatever follows the bracket is the party.
+_TRUNCATED_PAREN = re.compile(r"\s*\(([A-Za-z0-9-]{1,15})\s*$")
+
+
+def _is_party_abbrev(tail, party):
+    """
+    True if a trailing parenthetical is just the party repeated.
+
+    GMA appends the party to every name - "CRUZ, RODEL (LP)" - and the abbreviation does
+    not always match the party column verbatim ("PDPLBN" vs "PDP LABAN"), so test whether
+    the tail is a subsequence of the party.
+
+    This is what keeps NICKNAMES safe: the early cycles write "RUEL (TATA) YAP" and
+    "MARK (VICE) PALABRICA", and TATA/VICE are not abbreviations of their parties, so they
+    survive. Stripping every parenthetical would have destroyed those names.
+    """
+    if not tail or pd.isna(party) or not str(party).strip():
+        return False
+    t = re.sub(r"[^A-Z0-9]", "", str(tail).upper())
+    p = re.sub(r"[^A-Z0-9]", "", str(party).upper())
+    if not t or not p:
+        return False
+    if t == p:
+        return True
+    it = iter(p)                                   # is t a subsequence of p?
+    return all(c in it for c in t)
+
+
+def clean_reported_name(reported, party=None):
+    """
+    Strip a party that a source glued onto the name.
+
+    Returns (clean_name, recovered_party). recovered_party is set only where the name was
+    truncated mid-party and the party column is empty, so nothing is invented.
+    """
+    if pd.isna(reported):
+        return "", None
+    name = re.sub(r"\s+", " ", str(reported)).strip()
+
+    match = _TRAILING_PAREN.search(name)
+    if match and _is_party_abbrev(match.group(1), party):
+        return _TRAILING_PAREN.sub("", name).strip(), None
+
+    if pd.isna(party) or not str(party).strip():
+        match = _TRUNCATED_PAREN.search(name)
+        if match:
+            return _TRUNCATED_PAREN.sub("", name).strip(), match.group(1).strip().upper()
+
+    return name, None
+
+
+# A title glued to the name with no space, as COMELEC's 30-character truncation produces:
+# "ATTY.BEL" is the attorney Bel, not someone whose first name is "ATTY.BEL".
+_GLUED_TITLE = re.compile(
+    r"^(" + "|".join(sorted(TITLES, key=len, reverse=True)) + r")\.\s*(?=[A-Z])",
+    re.IGNORECASE,
+)
+
+
+def split_title(given):
+    """Pull leading honorifics off a given-name string. Returns (title, remainder)."""
+    text = str(given or "").strip()
+    titles = []
+
+    while True:
+        glued = _GLUED_TITLE.match(text)
+        if glued:
+            titles.append(glued.group(1).upper() + ".")
+            text = text[glued.end():].strip()
+            continue
+        parts = text.split()
+        if parts and parts[0].upper().rstrip(".") in TITLES:
+            titles.append(parts.pop(0))
+            text = " ".join(parts)
+            continue
+        break
+
+    return " ".join(titles), text
+
+
+def strip_nickname(name):
+    """
+    Drop a parenthesised nickname from a name.
+
+    The early cycles write "RUEL (TATA) YAP" and "MARK (VICE) PALABRICA". By the time this
+    runs the party has already been stripped, so a surviving bracket is a nickname. It is
+    removed rather than kept: left in place it lands in the middle name and corrupts it.
+    """
+    text = str(name or "")
+    if "(" not in text:
+        return text.strip()
+    return re.sub(r"\s+", " ", re.sub(r"\s*\([^)]*\)\s*", " ", text)).strip()
+
+
+def standardize_name(full_name, party=None):
+    """
+    Split a reported candidate name into (last, first, middle, title).
+
+    Handles both shapes: "SURNAME, FIRST MIDDLE" (the ballot feeds) and
+    "FIRST MIDDLE SURNAME" (the inherited file). The party is stripped, any parenthesised
+    nickname dropped, and any honorific lifted into `title` - so both datasets carry
+    identical, joinable name fields.
+    """
+    name, _ = clean_reported_name(full_name, party)
+    if not name:
+        return "", "", "", ""
+
+    name = strip_nickname(name)
+
+    if "," in name:
+        last_name, _, rest = name.partition(",")
+        title, rest = split_title(rest.strip())
+        parts = rest.split()
+        return (
+            last_name.strip(),
+            parts[0] if parts else "",
+            " ".join(parts[1:]) if len(parts) > 1 else "",
+            title,
+        )
+
+    title, rest = split_title(name)
+    parts = rest.split()
+    if len(parts) >= 2:
+        return parts[-1], parts[0], " ".join(parts[1:-1]), title
+    return "", parts[0] if parts else "", "", title
+
+
+def _text(value):
+    """Empty string for a missing value. NaN is TRUTHY, so `value or ""` yields "nan"."""
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return ""
+    text = str(value).strip()
+    return "" if text.lower() == "nan" else text
+
+
+def canonical_full_name(last, first, middle):
+    """One format for every cycle: "SURNAME, FIRST MIDDLE"."""
+    given = " ".join(x for x in (_text(first), _text(middle)) if x)
+    last = _text(last)
+    if last and given:
+        return f"{last}, {given}"
+    return last or given

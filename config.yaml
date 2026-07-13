@@ -40,10 +40,14 @@ datasets:
   vote_count_years: [2016, 2019, 2022, 2025]
 
   # Columns carried by the published winners dataset.
+  # `Full Name` is canonical "SURNAME, FIRST MIDDLE" in EVERY cycle. Titles (ATTY., DR.,
+  # DATU, BAI) are lifted into their own field rather than left inside the name, where
+  # they used to be mistaken for given names. Parenthesised nicknames are stripped.
   winners_columns:
     - Last Name
     - First Name
     - Middle Name
+    - Title
     - Full Name
     - Position
     - Party

@@ -21,9 +21,12 @@ from config import OUTPUT, VOTE_COUNT_YEARS, VOTE_COUNTS_CSV, raw_dir
 from normalize import (
     NON_GEOGRAPHIC,
     canonical_city,
+    canonical_full_name,
     canonical_region,
+    clean_reported_name,
     drop_duplicate_rows,
     resolve_province,
+    standardize_name,
 )
 
 # COMELEC embeds the locality in the office string, and the two cycles do it DIFFERENTLY:
@@ -186,6 +189,30 @@ def main():
 
     df["is_national_race"] = df["position"].isin(NATIONAL_OFFICES)
 
+    # --- names -------------------------------------------------------------
+    # Sources glue the party onto the name ("CRUZ, RODEL (LP)"), and COMELEC truncates at
+    # 30 characters, which severs the closing bracket and leaves the party column empty
+    # ("SANTANDER-DELOS REYES,LOVE(PFP"). Recover the party from the fragment, strip it
+    # from the name, and lift out titles and nicknames - the same canonical name fields
+    # the winners dataset carries, so the two are joinable.
+    parsed = [standardize_name(n, p)
+              for n, p in zip(df["candidate_name"], df["party"])]
+    recovered = [clean_reported_name(n, p)[1]
+                 for n, p in zip(df["candidate_name"], df["party"])]
+
+    df["reported_name"] = df["candidate_name"]
+    df["last_name"] = [x[0] for x in parsed]
+    df["first_name"] = [x[1] for x in parsed]
+    df["middle_name"] = [x[2] for x in parsed]
+    df["title"] = [x[3] for x in parsed]
+    df["candidate_name"] = [canonical_full_name(x[0], x[1], x[2]) for x in parsed]
+
+    n_recovered = sum(1 for r in recovered if r)
+    df["party"] = [r or p for r, p in zip(recovered, df["party"])]
+    if n_recovered:
+        print(f"  recovered {n_recovered:,} parties from truncated names")
+    print(f"  names canonicalised; {df['title'].astype(bool).sum():,} titles lifted out")
+
     # "1.54 %" -> 1.54
     df["percentage"] = pd.to_numeric(
         df["percentage"].astype(str).str.replace("%", "", regex=False).str.strip(),
@@ -198,10 +225,11 @@ def main():
     columns = [
         "year", "region", "province", "city", "district",
         "position",
-        "candidate_name", "party",
+        "candidate_name", "last_name", "first_name", "middle_name",
+        "title", "party",
         "votes", "percentage", "rank",
         "is_national_race", "is_geographic",
-        "raw_position",
+        "raw_position", "reported_name",
     ]
     df = df[columns].sort_values(
         ["year", "region", "province", "city", "position", "votes"],

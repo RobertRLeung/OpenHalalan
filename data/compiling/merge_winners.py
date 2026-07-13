@@ -34,42 +34,34 @@ from config import (
     WINNERS_COLUMNS,
     winners_csv,
 )
-from normalize import backfill_region, drop_duplicate_rows, normalize_places
-
-
-def standardize_name(full_name):
-    """Split a COMELEC candidate string into (last, first, middle)."""
-    if pd.isna(full_name) or not str(full_name).strip():
-        return "", "", ""
-
-    name = str(full_name).strip()
-
-    # COMELEC's usual form: "SURNAME, FIRST MIDDLE"
-    if "," in name:
-        last_name, _, rest = name.partition(",")
-        parts = rest.split()
-        return (
-            last_name.strip(),
-            parts[0] if parts else "",
-            " ".join(parts[1:]) if len(parts) > 1 else "",
-        )
-
-    parts = name.split()
-    if len(parts) >= 2:
-        return parts[-1], parts[0], " ".join(parts[1:-1])
-    return "", parts[0] if parts else "", ""
+from normalize import (
+    backfill_region,
+    canonical_full_name,
+    clean_reported_name,
+    drop_duplicate_rows,
+    normalize_places,
+    standardize_name,
+)
 
 
 def to_winners_schema(df, year):
-    """Convert scraped COMELEC rows into the published winners schema."""
-    names = [standardize_name(n) for n in df["candidate_name"]]
+    """
+    Convert ballot-derived rows into the published winners schema.
 
+    The name fields were already parsed by the vote-counts build - do NOT re-parse them
+    here. `candidate_name` is by now the CLEANED name, so re-parsing would find no title
+    or nickname and quietly drop both.
+    """
     return pd.DataFrame(
         {
-            "Last Name": [n[0] for n in names],
-            "First Name": [n[1] for n in names],
-            "Middle Name": [n[2] for n in names],
-            "Full Name": df["candidate_name"].values,
+            "Last Name": df["last_name"].values,
+            "First Name": df["first_name"].values,
+            "Middle Name": df["middle_name"].values,
+            "Title": df["title"].values,
+            "Full Name": [
+                canonical_full_name(l, f, m)
+                for l, f, m in zip(df["last_name"], df["first_name"], df["middle_name"])
+            ],
             "Position": df["position"].values,
             "Party": df["party"].values,
             "Year": year,
@@ -77,6 +69,27 @@ def to_winners_schema(df, year):
             "Region": df["region"].values,
         }
     )[WINNERS_COLUMNS]
+
+
+def canonicalise_inherited(df):
+    """
+    Bring the inherited cycles onto the same name schema.
+
+    The source writes "FIRST MIDDLE SURNAME" while every ballot feed writes
+    "SURNAME, FIRST MIDDLE", so joining the two on a name was a trap. Re-parse from the
+    reported name, lifting out titles and nicknames, and rewrite Full Name in the one
+    canonical form.
+    """
+    names = [
+        standardize_name(n, p) for n, p in zip(df["Full Name"], df.get("Party"))
+    ]
+    df = df.copy()
+    df["Last Name"] = [n[0] for n in names]
+    df["First Name"] = [n[1] for n in names]
+    df["Middle Name"] = [n[2] for n in names]
+    df["Title"] = [n[3] for n in names]
+    df["Full Name"] = [canonical_full_name(n[0], n[1], n[2]) for n in names]
+    return df[WINNERS_COLUMNS]
 
 
 def main():
@@ -93,7 +106,7 @@ def main():
         inherited = inherited.drop(columns=dropped)
         print(f"  dropped artefact columns: {', '.join(dropped)}")
 
-    frames = [inherited[WINNERS_COLUMNS]]
+    frames = [canonicalise_inherited(inherited)]
     for year in SCRAPED_YEARS:
         scraped = pd.read_csv(winners_csv(year))
         print(f"  + {year} COMELEC scrape: {len(scraped):,} rows")

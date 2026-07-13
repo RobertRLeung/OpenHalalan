@@ -136,9 +136,20 @@ def build_year(ballots, year, board_seats):
 
         # Sum each candidate's votes across every municipality reporting the race, THEN
         # rank within the jurisdiction that actually elects the seat.
+        #
+        # Carry the name fields the vote-counts build already parsed. Re-parsing here
+        # would silently lose them: by this point `candidate_name` is the CLEANED name,
+        # with the title and nickname already lifted out into their own columns.
         tally = (
             races.groupby(keys + ["candidate_name", "party"], dropna=False, as_index=False)
-            .agg(votes=("votes", "sum"), region=("region", "first"))
+            .agg(
+                votes=("votes", "sum"),
+                region=("region", "first"),
+                last_name=("last_name", "first"),
+                first_name=("first_name", "first"),
+                middle_name=("middle_name", "first"),
+                title=("title", "first"),
+            )
         )
 
         for _, group in tally.groupby(keys, dropna=False):
@@ -154,6 +165,10 @@ def build_year(ballots, year, board_seats):
                     "district": r["district"] if "district" in group.columns else None,
                     "position": position,
                     "candidate_name": r["candidate_name"],
+                    "last_name": r["last_name"],
+                    "first_name": r["first_name"],
+                    "middle_name": r["middle_name"],
+                    "title": r["title"],
                     "party": r["party"],
                     "votes": r["votes"],
                 })

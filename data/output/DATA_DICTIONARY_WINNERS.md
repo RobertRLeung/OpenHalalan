@@ -38,10 +38,11 @@ live in `NLE_Vote_Counts_2016-2025.csv.gz`.
 
 | Column | Type | Description |
 |---|---|---|
-| `Last Name` | string | Surname, upper case. Parsed from `Full Name`. |
-| `First Name` | string | Given name, upper case. Parsed from `Full Name`. |
-| `Middle Name` | string | Middle name. **Mostly empty for 2022 and 2025** — see *Known gaps*. |
-| `Full Name` | string | Name as reported by the source. **The authoritative name field** — prefer it over the parsed parts. |
+| `Last Name` | string | Surname, upper case. |
+| `First Name` | string | Given name, upper case. |
+| `Middle Name` | string | Middle name. Often empty — the ballot feeds rarely report one. |
+| `Title` | string | Honorific, where the source gave one: `ATTY.`, `DOC`, `DR.`, `ENGR.`, and the Moro honorifics `DATU`, `BAI`, `HADJI`. Usually empty. |
+| `Full Name` | string | **Canonical `SURNAME, FIRST MIDDLE` in every cycle.** Joins directly against `candidate_name` in the vote-counts dataset. |
 | `Position` | string | One of the seven offices above. |
 | `Party` | string | Party as reported (`LAKAS-CMD`, `PDPLBN`, `IND`, …). Not normalised across cycles. |
 | `Year` | int | Election year. |
@@ -106,7 +107,25 @@ an earlier version of the winners file should read this section.
    `LACUNA, HONEY` (538,595 votes, rank 4). **Every 2022 winner was affected.** Winners are
    now chosen by highest votes.
 
-2. **Provincial board members were ranked province-wide, but they are elected BY DISTRICT.**
+2. **Names were a mess, and are now canonical.** Three separate defects:
+   - The **party was glued into the name** — `CRUZ, RODEL (LP)` — across all 17,759 of
+     2016's winners and 175,305 vote-count rows, and 15,342 rows had `Middle Name` set to
+     the party (`(LP)`, `(NPC)`…) rather than a name.
+   - **Honorifics were being read as given names**: `ATTY. BEL` was recorded with the first
+     name `ATTY.`. 1,137 winners were affected. Titles now live in their own `Title` field.
+   - The two eras used **opposite name orders** — `ANICETO MANZANO ABAOAG` in the inherited
+     cycles versus `ABAOAG, ANICETO` in the ballot cycles — so joining the datasets on a
+     name silently failed.
+
+   `Full Name` is now canonical `SURNAME, FIRST MIDDLE` in **every** cycle, and **100% of
+   ballot-cycle winners now join to the vote counts on it** (it was 13%). A parenthesised
+   nickname that is not the party (`RUEL (TATA) YAP`) is stripped from the name.
+
+   Along the way this recovered **13 parties that were null**: COMELEC truncates names at
+   30 characters, which severs the closing bracket and drops the party
+   (`SANTANDER-DELOS REYES,LOVE(PFP`). The party is taken from the fragment.
+
+3. **Provincial board members were ranked province-wide, but they are elected BY DISTRICT.**
    The old builder summed each candidate's votes across the whole province and took the top
    N, which systematically favours candidates from populous districts over genuine winners
    in small ones. They are now ranked within their own provincial district.
