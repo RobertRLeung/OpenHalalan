@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://robertrleung.github.io/OpenHalalan/sitemap.xml
