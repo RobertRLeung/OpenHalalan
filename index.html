@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Open Halalan — The Philippine Election Monitor</title>
+<meta name="description" content="An open, auditable dataset of Philippine national and local election results, 2004–2025 — every winner, every vote count, reproducible from the raw COMELEC scrapes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root{
+    --paper:      #1A1A1A;
+    --paper-dim:  #202020;
+    --surface:    #242424;
+    --ink:        #F0F0F0;
+    --ink-soft:   #999999;
+    --violet:     #3E5641;
+    --violet-dim: #3FA9BC;
+    --gold:       #C2404A;
+    --tally:      #F0F0F0;
+    --stamp:      #C2404A;
+    --hover:      #C2404A;
+    --line:       rgba(240,240,240,0.14);
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', sans-serif;
+    background-image:
+      repeating-linear-gradient(0deg, rgba(240,240,240,0.03) 0px, rgba(240,240,240,0.03) 1px, transparent 1px, transparent 3px);
+  }
+  .font-display{font-family:'Fraunces', serif; font-optical-sizing:auto;}
+  .font-mono{font-family:'IBM Plex Mono', monospace;}
+  .hairline{border-color:var(--line);}
+  .pct-tab{font-family:'IBM Plex Mono', monospace; letter-spacing:0.05em;}
+  .tally-mark{stroke:var(--ink); stroke-width:3; fill:none; stroke-linecap:round;}
+  .badge-dot{width:7px;height:7px;border-radius:50%;background:var(--stamp);display:inline-block;animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.35;}}
+  ::selection{background:var(--violet); color:var(--ink);}
+  a{color:var(--violet-dim); transition:color .15s ease;}
+  a:hover{color:var(--hover);}
+  .btn-primary{
+    background:var(--violet); color:var(--ink);
+    transition:transform .15s ease, background .15s ease, color .15s ease;
+  }
+  .btn-primary:hover{background:var(--hover); color:var(--ink); transform:translateY(-1px);}
+  .btn-ghost{
+    border:1px solid var(--ink); color:var(--ink);
+    transition:background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .btn-ghost:hover{background:var(--hover); color:var(--ink); border-color:var(--hover);}
+  .card{
+    background:var(--surface); border:1px solid var(--line);
+  }
+  .stamp{
+    border:2px solid var(--stamp); color:var(--stamp);
+    transform:rotate(-3deg);
+  }
+  table.datatable th, table.datatable td{
+    border-bottom:1px solid var(--line);
+  }
+  table.datatable th{cursor:pointer; user-select:none; transition:color .15s ease;}
+  table.datatable th:hover{color:var(--hover);}
+  ::-webkit-scrollbar{height:8px; width:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; scroll-behavior:auto !important;}
+  }
+</style>
+</head>
+<body class="antialiased">
+
+<!-- ============ NAV ============ -->
+<header class="sticky top-0 z-40 backdrop-blur bg-[var(--paper)]/90 border-b hairline">
+  <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+    <a href="#top" class="flex items-center gap-2.5 font-display font-semibold text-lg tracking-tight">
+      <span class="inline-flex items-center justify-center rounded-sm" style="background:#000; padding:6px 8px;">
+        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+          <line x1="3" y1="16" x2="3" y2="4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+          <line x1="7" y1="16" x2="7" y2="4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+          <line x1="11" y1="16" x2="11" y2="4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+          <line x1="15" y1="16" x2="15" y2="4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+          <line x1="1" y1="15" x2="17" y2="5" stroke="var(--gold)" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span style="color:var(--gold)">Open Halalan</span>
+    </a>
+    <nav class="hidden md:flex items-center gap-8 text-sm font-mono uppercase tracking-wide text-[var(--ink-soft)]">
+      <a href="#about" class="hover:text-[var(--hover)]">About</a>
+      <a href="#issues" class="hover:text-[var(--hover)]">Issues</a>
+      <a href="#papers" class="hover:text-[var(--hover)]">Papers</a>
+      <a href="#download" class="hover:text-[var(--hover)]">Download</a>
+      <a href="#explore" class="hover:text-[var(--hover)]">Explore</a>
+    </nav>
+    <a href="https://github.com/RobertRLeung/OpenHalalan" class="btn-ghost text-sm font-mono px-4 py-2 rounded-sm">GitHub ↗</a>
+  </div>
+</header>
+
+<!-- ============ HERO ============ -->
+<section id="top" class="max-w-7xl mx-auto px-6 pt-16 pb-20 md:pt-24 md:pb-28">
+  <div class="grid md:grid-cols-5 gap-12 items-end">
+    <div class="md:col-span-3">
+      <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--stamp)] mb-4 flex items-center gap-2">
+        <span class="badge-dot"></span> Dataset live &middot; 2004–2025
+      </p>
+      <h1 class="font-display font-semibold text-5xl md:text-7xl leading-[1.03] tracking-tight">
+        Keeping the record straight.
+      </h1>
+      <p class="mt-6 text-lg md:text-xl text-[var(--ink-soft)] max-w-xl leading-relaxed">
+        Open Halalan is the largest open-source dataset of Philippine
+        national and local election results. Every winner since 2004, every
+        vote count since 2016, free for anyone and everyone.
+      </p>
+      <div class="mt-8 flex flex-wrap gap-4">
+        <a href="#download" class="btn-primary px-6 py-3 rounded-sm font-mono text-sm uppercase tracking-wide">Download dataset</a>
+        <a href="#papers" class="btn-ghost px-6 py-3 rounded-sm font-mono text-sm uppercase tracking-wide">Read the paper</a>
+      </div>
+    </div>
+
+    <!-- Tally board -->
+    <div class="md:col-span-2 card p-6 md:p-8">
+      <p class="font-mono text-xs uppercase tracking-[0.15em] text-[var(--ink-soft)] mb-6">Tally board — running count</p>
+      <div class="space-y-6" id="tally-board">
+        <div class="tally-row" data-target="8" data-suffix="" data-label="Winners dataset — cycles, 2004–2025">
+          <div class="flex justify-between items-baseline mb-1">
+            <span class="text-sm">Winners dataset — cycles, 2004–2025</span>
+            <span class="font-mono text-2xl font-medium tally-value">0</span>
+          </div>
+          <svg class="w-full h-6 tally-svg" viewBox="0 0 240 24"></svg>
+        </div>
+        <div class="tally-row" data-target="4" data-suffix="" data-label="Vote counts dataset — cycles, 2016–2025">
+          <div class="flex justify-between items-baseline mb-1">
+            <span class="text-sm">Vote counts dataset — cycles, 2016–2025</span>
+            <span class="font-mono text-2xl font-medium tally-value">0</span>
+          </div>
+          <svg class="w-full h-6 tally-svg" viewBox="0 0 240 24"></svg>
+        </div>
+        <div class="tally-row" data-target="4198178718" data-suffix="B" data-label="Votes counted, all cycles">
+          <div class="flex justify-between items-baseline mb-1">
+            <span class="text-sm">Votes counted, all cycles</span>
+            <span class="font-mono text-2xl font-medium tally-value">0</span>
+          </div>
+          <svg class="w-full h-6 tally-svg" viewBox="0 0 240 24"></svg>
+        </div>
+      </div>
+      <p class="mt-6 text-xs text-[var(--ink-soft)] font-mono">Live counts from <code>data/output/</code> as of the last dataset build.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ABOUT ============ -->
+<section id="about" class="border-t hairline">
+  <div class="max-w-7xl mx-auto px-6 py-20 md:py-28">
+    <div class="grid md:grid-cols-12 gap-10">
+      <div class="md:col-span-4">
+        <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--gold)] mb-3">About the project</p>
+        <h2 class="font-display font-semibold italic text-3xl md:text-4xl leading-tight">Data para sa bayan.</h2>
+      </div>
+      <div class="md:col-span-8 card p-8">
+        <p class="text-sm text-[var(--ink-soft)] leading-relaxed">Doing research on the Philippines is hard. Finding the data doesn't have to be. OpenHalalan started as a byproduct of an undergraduate thesis on Philippine political dynasties. It's non-partisan, volunteer-run, and independent — no party, campaign, or government office funds or controls it. One bundled, citable dataset: every winning candidate for seven local &amp; district offices since 2004, plus full candidate-level vote counts since 2016 — winners and losers. Everything rebuilds from committed raw scrapes with <code>python run_all.py</code> — no hidden steps. Static site, no backend, mirrored to Zenodo for a citable DOI on every release.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ KNOWN ISSUES ============ -->
+<section id="issues" class="border-t hairline bg-[var(--paper-dim)]">
+  <div class="max-w-7xl mx-auto px-6 py-20 md:py-28">
+    <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--gold)] mb-3">Data quality</p>
+    <h2 class="font-display font-semibold text-3xl md:text-4xl mb-10">Known issues.</h2>
+    <div class="card p-6">
+      <ul class="text-sm text-[var(--ink-soft)] leading-relaxed list-disc pl-5 space-y-2">
+        <li>Missing vote count data from 2013 back.</li>
+      </ul>
+    </div>
+    <p class="mt-4 font-mono text-xs text-[var(--ink-soft)]">Spot something else? See the <a href="https://github.com/RobertRLeung/OpenHalalan" class="underline">audit log</a> or <a href="#questions" class="underline">let us know</a>.</p>
+  </div>
+</section>
+
+<!-- ============ PAPERS ============ -->
+<section id="papers" class="border-t hairline bg-[var(--paper-dim)]">
+  <div class="max-w-7xl mx-auto px-6 py-20 md:py-28">
+    <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--gold)] mb-3">Research</p>
+    <h2 class="font-display font-semibold text-3xl md:text-4xl mb-10">Built on this dataset.</h2>
+    <a href="https://arxiv.org/abs/2505.21280" class="card p-8 flex flex-col md:flex-row md:items-center gap-6 md:gap-10 hover:-translate-y-0.5 transition-transform">
+      <div class="flex-1">
+        <p class="pct-tab text-xs text-[var(--stamp)] mb-3">WORKING PAPER &middot; arXiv:2505.21280</p>
+        <h3 class="font-display font-semibold text-xl md:text-2xl mb-2">The Families that Stay Together: A Network Analysis of Dynastic Power in Philippine Politics</h3>
+        <p class="text-sm text-[var(--ink-soft)] leading-relaxed">Acuna, R., Alejandro, A., &amp; Leung, R. (2025). Graph-theoretic metrics for clan structure applied to the same election data, testing whether structure — not just dynasty presence — drives development outcomes.</p>
+      </div>
+      <span class="btn-ghost shrink-0 inline-block px-5 py-2.5 rounded-sm font-mono text-sm text-center">Read on arXiv ↗</span>
+    </a>
+  </div>
+</section>
+
+<!-- ============ EXPLORE ============ -->
+<section id="explore" class="border-t hairline bg-[var(--paper-dim)]">
+  <div class="max-w-7xl mx-auto px-6 py-20 md:py-28">
+    <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--gold)] mb-3">Explore</p>
+    <h2 class="font-display font-semibold text-3xl md:text-4xl mb-10">Filter the count.</h2>
+
+    <div class="flex flex-wrap gap-4 mb-8 items-end">
+      <div>
+        <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1" for="filter-year">Election year</label>
+        <select id="filter-year" class="font-mono text-sm border hairline bg-[var(--paper)] px-3 py-2 rounded-sm">
+          <option value="all">All years</option>
+          <option value="2004">2004</option>
+          <option value="2007">2007</option>
+          <option value="2010">2010</option>
+          <option value="2013">2013</option>
+          <option value="2016">2016</option>
+          <option value="2019">2019</option>
+          <option value="2022">2022</option>
+          <option value="2025">2025</option>
+        </select>
+      </div>
+      <div>
+        <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1" for="filter-position">Position</label>
+        <select id="filter-position" class="font-mono text-sm border hairline bg-[var(--paper)] px-3 py-2 rounded-sm">
+          <option value="all">All positions</option>
+          <option value="President">President</option>
+          <option value="Vice President">Vice President</option>
+          <option value="Senator">Senator</option>
+          <option value="Governor">Governor</option>
+          <option value="Mayor">Mayor</option>
+          <option value="Member, House of Representatives">Member, House of Representatives</option>
+        </select>
+      </div>
+      <div>
+        <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1" for="filter-region">Region</label>
+        <select id="filter-region" class="font-mono text-sm border hairline bg-[var(--paper)] px-3 py-2 rounded-sm">
+          <option value="all">All regions</option>
+          <option value="Nationwide">Nationwide</option>
+          <option value="BARMM">BARMM</option>
+          <option value="Cordillera Administrative Region">Cordillera Administrative Region</option>
+          <option value="National Capital Region">National Capital Region</option>
+          <option value="Negros Island Region">Negros Island Region</option>
+          <option value="Region I">Region I</option>
+          <option value="Region II">Region II</option>
+          <option value="Region III">Region III</option>
+          <option value="Region IV-A">Region IV-A</option>
+          <option value="Region IV-B">Region IV-B</option>
+          <option value="Region V">Region V</option>
+          <option value="Region VI">Region VI</option>
+          <option value="Region VII">Region VII</option>
+          <option value="Region VIII">Region VIII</option>
+          <option value="Region IX">Region IX</option>
+          <option value="Region X">Region X</option>
+          <option value="Region XI">Region XI</option>
+          <option value="Region XII">Region XII</option>
+          <option value="Region XIII">Region XIII</option>
+        </select>
+      </div>
+      <p class="font-mono text-xs text-[var(--ink-soft)] pb-2">Small hand-picked sample from both files — full data on GitHub. National races (President/VP/Senator) show as "Nationwide"; votes shown where available.</p>
+    </div>
+
+    <div class="grid lg:grid-cols-5 gap-8 mb-12">
+      <div class="lg:col-span-3 card p-6">
+        <h3 class="font-display font-semibold text-lg mb-1">Winning-party affiliation, top 5 by total wins</h3>
+        <p class="text-xs text-[var(--ink-soft)] mb-4">LAKAS-CMD's near-total 2010 collapse and PDP-Laban's 2016–2022 spike, both real.</p>
+        <canvas id="chart-share" height="220"></canvas>
+      </div>
+      <div class="lg:col-span-2 card p-6">
+        <h3 class="font-display font-semibold text-lg mb-1">Independent-candidate win share</h3>
+        <p class="text-xs text-[var(--ink-soft)] mb-4">Share of all winning seats with no party affiliation, by cycle.</p>
+        <canvas id="chart-hop" height="220"></canvas>
+      </div>
+    </div>
+
+    <div class="card overflow-x-auto">
+      <table class="datatable w-full text-sm" id="results-table">
+        <thead>
+          <tr class="font-mono text-xs uppercase tracking-wide text-left text-[var(--ink-soft)]">
+            <th class="p-3" data-key="year">Year</th>
+            <th class="p-3" data-key="position">Position</th>
+            <th class="p-3" data-key="region">Region</th>
+            <th class="p-3" data-key="candidate">Candidate</th>
+            <th class="p-3" data-key="party">Party</th>
+            <th class="p-3" data-key="votes">Votes</th>
+          </tr>
+        </thead>
+        <tbody id="results-tbody"></tbody>
+      </table>
+    </div>
+    <p class="mt-3 font-mono text-xs text-[var(--ink-soft)]">Click a column header to sort. Winners only — full candidate-level vote counts (including losers) are in the raw file.</p>
+  </div>
+</section>
+
+<!-- ============ DOWNLOAD ============ -->
+<section id="download" class="border-t hairline">
+  <div class="max-w-7xl mx-auto px-6 py-20 md:py-28">
+    <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--gold)] mb-3">Access</p>
+    <h2 class="font-display font-semibold text-3xl md:text-4xl mb-10">Take the data with you.</h2>
+
+    <div class="grid md:grid-cols-2 gap-6">
+      <div class="card p-8">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-display font-semibold text-xl">GitHub repository</h3>
+          <span class="stamp text-[10px] font-mono uppercase px-2 py-0.5">Latest</span>
+        </div>
+        <p class="text-sm text-[var(--ink-soft)] leading-relaxed mb-6">Full commit history, the raw COMELEC scrapes, and the one-command pipeline (<code>python run_all.py</code>). Fork it, file a correction, or open an issue.</p>
+        <a href="https://github.com/RobertRLeung/OpenHalalan" class="btn-primary inline-block px-5 py-2.5 rounded-sm font-mono text-sm">Clone on GitHub ↗</a>
+      </div>
+
+      <div class="card p-8">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-display font-semibold text-xl">Zenodo archive</h3>
+          <span class="text-[10px] font-mono uppercase px-2 py-0.5 border hairline" style="color:var(--stamp); border-color:var(--stamp);">v2.0.0 live</span>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <a href="https://doi.org/10.5281/zenodo.17783099" class="btn-primary inline-block px-5 py-2.5 rounded-sm font-mono text-sm">Latest record ↗</a>
+          <a href="https://doi.org/10.5281/zenodo.17783100" class="btn-ghost inline-block px-5 py-2.5 rounded-sm font-mono text-sm opacity-60">Old record (deprecated) ↗</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="card p-8 mt-6">
+      <h3 class="font-display font-semibold text-xl mb-3">Cite this dataset</h3>
+      <blockquote class="font-mono text-xs md:text-sm bg-[var(--paper-dim)] p-5 rounded-sm border-l-4 leading-relaxed" style="border-color:var(--violet);">
+        Leung, R., Alejandro, A., Acuna, R., Buot, J., Go, C., &amp; Nable, J. (2025).<br>
+        <em class="font-display not-italic" style="font-style:italic;">OpenHalalan: The Philippine National and Local Election Dataset</em> (Version 2.0)<br>
+        [Data set]. Zenodo. <span>https://doi.org/10.5281/zenodo.17783099</span>
+      </blockquote>
+      <p class="text-xs text-[var(--ink-soft)] mt-3">Licensed under the <a href="https://github.com/RobertRLeung/OpenHalalan" class="underline">Open Database License (ODbL) v1.0</a>. Field-level definitions: <a href="https://github.com/RobertRLeung/OpenHalalan/blob/main/data/output/DATA_DICTIONARY_WINNERS.md" class="underline">winners</a> · <a href="https://github.com/RobertRLeung/OpenHalalan/blob/main/data/output/DATA_DICTIONARY_VOTE_COUNTS.md" class="underline">vote counts</a>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ BLOG TEASER ============ -->
+<section id="blog" class="border-t hairline bg-[var(--paper-dim)]">
+  <div class="max-w-7xl mx-auto px-6 py-20 md:py-28">
+    <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--gold)] mb-3">Notes</p>
+    <h2 class="font-display font-semibold text-3xl md:text-4xl mb-10">From the field.</h2>
+    <div class="card p-8 text-center">
+      <p class="text-sm text-[var(--ink-soft)]">Field notes on the scrape, the audit, and the fixes go here once the blog is wired up. Nothing published yet — check the <a href="https://github.com/RobertRLeung/OpenHalalan" class="underline">repo</a> for progress in the meantime.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ QUESTIONS ============ -->
+<section id="questions" class="border-t hairline">
+  <div class="max-w-7xl mx-auto px-6 py-20 md:py-28 text-center">
+    <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--gold)] mb-3">Questions?</p>
+    <h2 class="font-display font-semibold text-3xl md:text-4xl mb-4">Spotted an issue with the data? Want to contribute?</h2>
+    <p class="text-lg text-[var(--ink-soft)]">Reach out to <a href="mailto:rnrleung@gmail.com" class="underline" style="color:var(--ink);">rnrleung@gmail.com</a></p>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="border-t hairline">
+  <div class="max-w-7xl mx-auto px-6 py-10 flex flex-col md:flex-row justify-between gap-4 text-sm text-[var(--ink-soft)]">
+    <p class="font-mono">Open Halalan &middot; ODbL-licensed, non-partisan, built for the record.</p>
+    <div class="flex gap-6 font-mono">
+      <a href="https://arxiv.org/abs/2505.21280" class="hover:text-[var(--hover)]">Research paper ↗</a>
+      <a href="https://github.com/RobertRLeung/OpenHalalan" class="hover:text-[var(--hover)]">GitHub ↗</a>
+      <a href="https://github.com/RobertRLeung/OpenHalalan/blob/main/CONTRIBUTING.md" class="hover:text-[var(--hover)]">Contribute</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+// ---------- Real winners, combined sample from both files ----------
+// National races: aggregated from data/output/NLE_Vote_Counts_2016-2025.csv.gz
+// Local races: data/output/NLE_Winners_2004-2025.csv (no vote totals in that file, so votes is null)
+// Note: 2022 President/VP omitted here — a real gap was found (Robredo missing from the 2022 President
+// tally in this file), so no "top finishers" list is shown for that race until it's audited.
+const SAMPLE_ROWS = [
+  // 2025 — midterm, no President/VP. Full Senate (12 seats), nationwide.
+  {year:2025, position:"Senator", region:"Nationwide", candidate:"Bong Go", party:"PDPLBN", votes:26866683},
+  {year:2025, position:"Senator", region:"Nationwide", candidate:"Bam Aquino", party:"KNP", votes:20800423},
+  {year:2025, position:"Senator", region:"Nationwide", candidate:"Bato dela Rosa", party:"PDPLBN", votes:20547083},
+  {year:2025, position:"Senator", region:"Nationwide", candidate:"Erwin Tulfo", party:"LAKAS", votes:16994791},
+  {year:2025, position:"Senator", region:"Nationwide", candidate:"Kiko Pangilinan", party:"LP", votes:15202610},
+  {year:2025, position:"Senator", region:"Nationwide", candidate:"Rodante Marcoleta", party:"IND", votes:15051942},
+  {year:2025, position:"Senator", region:"Nationwide", candidate:"Ping Lacson", party:"IND", votes:14971710},
+  {year:2025, position:"Senator", region:"Nationwide", candidate:"Tito Sotto", party:"NPC", votes:14704832},
+  {year:2025, position:"Senator", region:"Nationwide", candidate:"Pia Cayetano", party:"NP", votes:14459661},
+  {year:2025, position:"Senator", region:"Nationwide", candidate:"Camille Villar", party:"NP", votes:13556225},
+  {year:2025, position:"Senator", region:"Nationwide", candidate:"Lito Lapid", party:"NPC", votes:13326442},
+  {year:2025, position:"Senator", region:"Nationwide", candidate:"Imee Marcos", party:"NP", votes:13222309},
+  // 2022 — Senate top 3 (full 12 in raw file)
+  {year:2022, position:"Senator", region:"Nationwide", candidate:"Robin Padilla", party:"PDPLBN", votes:26868462},
+  {year:2022, position:"Senator", region:"Nationwide", candidate:"Loren Legarda", party:"NPC", votes:24236628},
+  {year:2022, position:"Senator", region:"Nationwide", candidate:"Raffy Tulfo", party:"IND", votes:23499765},
+  // 2019 — Senate top 3, no President/VP (midterm)
+  {year:2019, position:"Senator", region:"Nationwide", candidate:"Cynthia Villar", party:"NP", votes:25019410},
+  {year:2019, position:"Senator", region:"Nationwide", candidate:"Grace Poe", party:"IND", votes:21856306},
+  {year:2019, position:"Senator", region:"Nationwide", candidate:"Bong Go", party:"PDPLBN", votes:20333423},
+  // 2016 — President, VP, Senate top 3
+  {year:2016, position:"President", region:"Nationwide", candidate:"Rodrigo Duterte", party:"PDPLBN", votes:15848890},
+  {year:2016, position:"Vice President", region:"Nationwide", candidate:"Leni Robredo", party:"LP", votes:13991976},
+  {year:2016, position:"Senator", region:"Nationwide", candidate:"Frank Drilon", party:"LP", votes:18070426},
+  {year:2016, position:"Senator", region:"Nationwide", candidate:"Joel Villanueva", party:"LP", votes:18034748},
+  {year:2016, position:"Senator", region:"Nationwide", candidate:"Tito Sotto", party:"NPC", votes:16758893},
+  // Local races, real winners from NLE_Winners_2004-2025.csv — no vote totals in that file
+  {year:2004, position:"Governor", region:"Region XIII", candidate:"Erlpe John Amante", party:"LAKAS-CMD", votes:null},
+  {year:2004, position:"Member, House of Representatives", region:"Region XIII", candidate:"Ma. Angelica Rosedell Malbas Amante", party:"LAKAS-CMD", votes:null},
+  {year:2010, position:"Mayor", region:"Region VII", candidate:"Rosemarie Lim Imboy", party:"LKS-KAM", votes:null},
+  {year:2004, position:"Mayor", region:"Region III", candidate:"Evelyn Mejarito Paulino", party:"LAKAS-CMD", votes:null},
+  {year:2010, position:"Mayor", region:"Region VIII", candidate:"Ma Corazon Ellacanao Remandaban", party:"LKS-KAM", votes:null},
+  {year:2016, position:"Mayor", region:"Region V", candidate:"Byron Bravo", party:"NUP", votes:null},
+  {year:2004, position:"Member, House of Representatives", region:"Region X", candidate:"Jurdin Jesus Modina Romualdo", party:"NPC", votes:null},
+  {year:2016, position:"Member, House of Representatives", region:"Region XII", candidate:"Jose Tejada", party:"LP", votes:null},
+  {year:2025, position:"Member, House of Representatives", region:"Region VII", candidate:"Inday Daphne Lagon", party:"LAKAS", votes:null},
+];
+
+const YEARS = [2004,2007,2010,2013,2016,2019,2022,2025];
+// Winning-candidate counts by party, top 5 parties by total wins across all 8 cycles (local races, NLE_Winners file)
+const PARTY_SERIES = {
+  "LP":        [1397,1116,2529,6282,7294, 662, 420, 248],
+  "NPC":       [2526,1720,1394,2244,2079,1863,1860,1797],
+  "LAKAS-CMD": [7329,6086,   0,   0,   0,   0,   0,   0],
+  "NP":        [   9, 161,2582,1722,1370,2636,2551,2031],
+  "PDPLBN":    [ 107, 164,  54,  17,   0,5695,3897, 147],
+};
+const IND_SHARE = [10.6,7.7,11.3,12.2,12.8,10.5,9.3,9.4]; // % of winners with no party, by cycle
+
+// ---------- Tally board count-up (SVG hash marks) ----------
+function drawTally(svg, count){
+  svg.innerHTML = "";
+  const groups = Math.floor(count/5), remainder = count%5;
+  let x = 2;
+  const top = 6, bottom = 18; // 12-unit tall marks, matching the logo's proportions
+  for(let g=0; g<groups; g++){
+    for(let i=0;i<4;i++){
+      const l = document.createElementNS("http://www.w3.org/2000/svg","line");
+      l.setAttribute("x1", x); l.setAttribute("x2", x);
+      l.setAttribute("y1", top); l.setAttribute("y2", bottom);
+      l.setAttribute("class","tally-mark");
+      l.setAttribute("vector-effect","non-scaling-stroke");
+      svg.appendChild(l);
+      x += 4;
+    }
+    const d = document.createElementNS("http://www.w3.org/2000/svg","line");
+    d.setAttribute("x1", x-18); d.setAttribute("x2", x+2);
+    d.setAttribute("y1", bottom); d.setAttribute("y2", top);
+    d.setAttribute("class","tally-mark");
+    d.setAttribute("stroke","var(--stamp)");
+    d.setAttribute("vector-effect","non-scaling-stroke");
+    svg.appendChild(d);
+    x += 8;
+  }
+  for(let i=0;i<remainder;i++){
+    const l = document.createElementNS("http://www.w3.org/2000/svg","line");
+    l.setAttribute("x1", x); l.setAttribute("x2", x);
+    l.setAttribute("y1", top); l.setAttribute("y2", bottom);
+    l.setAttribute("class","tally-mark");
+    l.setAttribute("vector-effect","non-scaling-stroke");
+    svg.appendChild(l);
+    x += 4;
+  }
+}
+
+function animateTally(row){
+  const target = parseInt(row.dataset.target, 10);
+  const valueEl = row.querySelector(".tally-value");
+  const svg = row.querySelector(".tally-svg");
+
+  let divisor = 1, suffix = "";
+  if(target >= 1e9){ divisor = 1e9; suffix = "B"; }
+  else if(target >= 1e3){ divisor = 1e3; suffix = "k"; }
+
+  const displayTarget = divisor > 1 ? Math.round((target/divisor) * 10) / 10 : target;
+  const decimals = divisor > 1 ? 1 : 0;
+  let current = 0;
+  const steps = 30;
+  const increment = Math.max(displayTarget/steps, 0.1);
+
+  const timer = setInterval(()=>{
+    current += increment;
+    if(current >= displayTarget){ current = displayTarget; clearInterval(timer); }
+    const shown = decimals ? current.toFixed(decimals) : Math.round(current);
+    valueEl.textContent = shown + suffix + (divisor > 1 ? "+" : "");
+    drawTally(svg, Math.min(Math.round(current * (decimals ? 4 : 1)), 20));
+  }, 40);
+}
+
+document.querySelectorAll(".tally-row").forEach(animateTally);
+
+// ---------- Table render + sort ----------
+const tbody = document.getElementById("results-tbody");
+let currentRows = [...SAMPLE_ROWS];
+let sortKey = null, sortAsc = true;
+
+function renderRows(){
+  tbody.innerHTML = currentRows.map(r => `
+    <tr>
+      <td class="p-3 font-mono">${r.year}</td>
+      <td class="p-3">${r.position}</td>
+      <td class="p-3">${r.region}</td>
+      <td class="p-3">${r.candidate}</td>
+      <td class="p-3">${r.party}</td>
+      <td class="p-3 font-mono">${r.votes === null ? "—" : r.votes.toLocaleString()}</td>
+    </tr>
+  `).join("");
+}
+renderRows();
+
+document.querySelectorAll("#results-table th").forEach(th=>{
+  th.addEventListener("click", ()=>{
+    const key = th.dataset.key;
+    sortAsc = (sortKey === key) ? !sortAsc : true;
+    sortKey = key;
+    currentRows.sort((a,b)=>{
+      const av = a[key], bv = b[key];
+      if(av === null) return 1;
+      if(bv === null) return -1;
+      if(av < bv) return sortAsc ? -1 : 1;
+      if(av > bv) return sortAsc ? 1 : -1;
+      return 0;
+    });
+    renderRows();
+  });
+});
+
+function applyFilters(){
+  const year = document.getElementById("filter-year").value;
+  const position = document.getElementById("filter-position").value;
+  const region = document.getElementById("filter-region").value;
+  currentRows = SAMPLE_ROWS.filter(r =>
+    (year === "all" || String(r.year) === year) &&
+    (position === "all" || r.position === position) &&
+    (region === "all" || r.region === region)
+  );
+  renderRows();
+}
+document.getElementById("filter-year").addEventListener("change", applyFilters);
+document.getElementById("filter-position").addEventListener("change", applyFilters);
+document.getElementById("filter-region").addEventListener("change", applyFilters);
+
+// ---------- Charts ----------
+const inkSoft = "#999999";
+Chart.defaults.font.family = "'IBM Plex Mono', monospace";
+Chart.defaults.color = inkSoft;
+
+const PARTY_COLORS = {
+  "LP": "#3FA9BC", "NPC": "#F0F0F0", "LAKAS-CMD": "#C2404A",
+  "NP": "#5B8C63", "PDPLBN": "#D4A373",
+};
+new Chart(document.getElementById("chart-share"), {
+  type: "line",
+  data: {
+    labels: YEARS,
+    datasets: Object.entries(PARTY_SERIES).map(([party, data]) => ({
+      label: party,
+      data,
+      borderColor: PARTY_COLORS[party],
+      backgroundColor: PARTY_COLORS[party],
+      tension: 0.3,
+      pointRadius: 3,
+      borderWidth: 2,
+    }))
+  },
+  options: {
+    plugins: { legend: { position:"bottom", labels:{ boxWidth:10, font:{size:10} } } },
+    scales: {
+      y: { grid:{ color:"rgba(240,240,240,0.14)" }, title:{ display:true, text:"seats won" } },
+      x: { grid:{ display:false } }
+    }
+  }
+});
+
+new Chart(document.getElementById("chart-hop"), {
+  type: "bar",
+  data: {
+    labels: YEARS,
+    datasets: [{
+      label: "% independent winners",
+      data: IND_SHARE,
+      backgroundColor: "#3E5641",
+      borderRadius: 2,
+      maxBarThickness: 28,
+    }]
+  },
+  options: {
+    plugins: { legend: { display:false } },
+    scales: {
+      y: { grid:{ color:"rgba(240,240,240,0.14)" }, ticks:{ callback:v=>v+"%" } },
+      x: { grid:{ display:false } }
+    }
+  }
+});
+</script>
+</body>
+</html>
