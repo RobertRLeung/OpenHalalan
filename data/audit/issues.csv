@@ -11,6 +11,7 @@ winners,medium,same person listed twice for one seat,2013,"20 rows in 2013 share
 winners,medium,same person listed twice for one seat,2010,"16 rows in 2010 share a (Province, Position, Full Name) with another row"
 winners,medium,same person listed twice for one seat,2007,"20 rows in 2007 share a (Province, Position, Full Name) with another row"
 winners,medium,same person listed twice for one seat,2004,"18 rows in 2004 share a (Province, Position, Full Name) with another row"
+votecounts,low,party missing,all cycles,"67 of 720,785 person-candidate rows (0.01%) have no party. Party-list groups are excluded: they have no party because they ARE the party"
 votecounts,info,non-geographic tally category,LAV,"221 rows (554,928 votes) under 'LAV' - a nationwide tally, not a place. Offices: PARTY LIST, SENATOR. Excluded from geographic aggregation via is_geographic=False"
 alignment,info,no vote counts for this cycle,2004,"2004 winners are inherited from the source file; the vote-count dataset covers [2016, 2019, 2022, 2025], so this cycle cannot be verified against ballots"
 alignment,info,no vote counts for this cycle,2007,"2007 winners are inherited from the source file; the vote-count dataset covers [2016, 2019, 2022, 2025], so this cycle cannot be verified against ballots"

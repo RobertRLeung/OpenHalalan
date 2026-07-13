@@ -98,6 +98,17 @@ DISTRICT_RE = re.compile(r"([A-Z]+(?:\s+[A-Z]+)*?)\s+(?:LEGDIST|PROVDIST|REGDIST
 # is only the candidate's standing WITHIN that locality, not who won the seat.
 NATIONAL_OFFICES = {"PRESIDENT", "VICE PRESIDENT", "SENATOR", "PARTY LIST"}
 
+# Offices where the "candidate" is an ORGANISATION, not a person. The ballot lists them by
+# number and name - "63 AMIN", "5 ABANG LINGKOD" - and they have no party, because they
+# ARE the party.
+#
+# These must never go through the person-name parser: it comma-splits them into nonsense
+# ("BAYAN MUNA" -> "MUNA, 81 BAYAN"), which is what an earlier build shipped for 405 of
+# the 412 distinct party-list organisations, across 47.8% of the dataset.
+NON_PERSON_OFFICES = {"PARTY LIST", "BARMM PARTY REPRESENTATIVE"}
+
+_BALLOT_NUMBER = re.compile(r"^\s*\d+\s+")
+
 
 def split_position(position):
     """
@@ -196,17 +207,36 @@ def main():
     # ("SANTANDER-DELOS REYES,LOVE(PFP"). Recover the party from the fragment, strip it
     # from the name, and lift out titles and nicknames - the same canonical name fields
     # the winners dataset carries, so the two are joinable.
-    parsed = [standardize_name(n, p)
-              for n, p in zip(df["candidate_name"], df["party"])]
-    recovered = [clean_reported_name(n, p)[1]
-                 for n, p in zip(df["candidate_name"], df["party"])]
-
     df["reported_name"] = df["candidate_name"]
-    df["last_name"] = [x[0] for x in parsed]
-    df["first_name"] = [x[1] for x in parsed]
-    df["middle_name"] = [x[2] for x in parsed]
-    df["title"] = [x[3] for x in parsed]
-    df["candidate_name"] = [canonical_full_name(x[0], x[1], x[2]) for x in parsed]
+    is_person = ~df["position"].isin(NON_PERSON_OFFICES)
+
+    parsed = [
+        standardize_name(n, p) if person else ("", "", "", "")
+        for n, p, person in zip(df["candidate_name"], df["party"], is_person)
+    ]
+    recovered = [
+        clean_reported_name(n, p)[1] if person else None
+        for n, p, person in zip(df["candidate_name"], df["party"], is_person)
+    ]
+
+    df["last_name"] = [x[0] or None for x in parsed]
+    df["first_name"] = [x[1] or None for x in parsed]
+    df["middle_name"] = [x[2] or None for x in parsed]
+    df["title"] = [x[3] or None for x in parsed]
+
+    # Persons get the canonical "SURNAME, FIRST MIDDLE". Organisations keep their own name,
+    # with the ballot number stripped so the same party-list group has one key across
+    # cycles (its number changes every election).
+    df["candidate_name"] = [
+        canonical_full_name(x[0], x[1], x[2]) if person
+        else _BALLOT_NUMBER.sub("", str(reported)).strip()
+        for x, person, reported in zip(parsed, is_person, df["reported_name"])
+    ]
+
+    n_orgs = int((~is_person).sum())
+    if n_orgs:
+        print(f"  {n_orgs:,} rows are organisations (party-list), not persons: "
+              f"name parsing skipped")
 
     n_recovered = sum(1 for r in recovered if r)
     df["party"] = [r or p for r, p in zip(recovered, df["party"])]
@@ -220,6 +250,12 @@ def main():
     df["reported_party"] = df["party"]
     before = df["party"].nunique()
     df["party"] = df["party"].map(canonical_party)
+
+    # A party-list group has no party - it IS the party. Sources disagree on how to say
+    # so (GMA writes "GROUP", COMELEC leaves it empty); make it uniformly empty. The
+    # source's own value survives in reported_party.
+    df.loc[df["position"].isin(NON_PERSON_OFFICES), "party"] = None
+
     print(f"  parties canonicalised: {before} -> {df['party'].nunique()} distinct")
     print(f"  names canonicalised; {df['title'].astype(bool).sum():,} titles lifted out")
 

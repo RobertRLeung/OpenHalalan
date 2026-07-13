@@ -253,8 +253,30 @@ def audit_votecounts():
     counts = pd.DataFrame(rows)
     counts.to_csv(AUDIT / "coverage_votecounts.csv", index=False)
 
-    # Report the non-geographic tallies that were set aside above.
     published = pd.read_csv(VOTE_COUNTS_CSV, low_memory=False)
+
+    # --- party-list groups are ORGANISATIONS, not people ---------------------
+    # An earlier build ran them through the person-name parser, which comma-split 405 of
+    # the 412 groups into nonsense ("BAYAN MUNA" -> "MUNA, 81 BAYAN") across 47.8% of the
+    # dataset. Guard against that ever returning.
+    ORG_OFFICES = ["PARTY LIST", "BARMM PARTY REPRESENTATIVE"]
+    orgs = published[published["position"].isin(ORG_OFFICES)]
+    mangled = orgs[orgs["last_name"].notna()]
+    if not mangled.empty:
+        flag("votecounts", "high", "party-list groups parsed as people",
+             "PARTY LIST", f"{len(mangled):,} organisation rows have person-name fields "
+             f"set; they are groups, not candidates, and must not be name-parsed")
+
+    # Party is missing on person candidates only where the source omitted it.
+    people = published[~published["position"].isin(ORG_OFFICES)]
+    missing = people["party"].isna().sum()
+    if missing:
+        flag("votecounts", "low", "party missing", "all cycles",
+             f"{missing:,} of {len(people):,} person-candidate rows ({missing / len(people):.2%}) "
+             f"have no party. Party-list groups are excluded: they have no party because "
+             f"they ARE the party")
+
+    # Report the non-geographic tallies that were set aside above.
     special = published[~published["is_geographic"]]
     if not special.empty:
         for prov, grp in special.groupby("province"):
