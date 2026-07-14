@@ -119,7 +119,7 @@
   }
   .lgu{stroke:var(--paper-dim); stroke-width:0.3; vector-effect:non-scaling-stroke; cursor:pointer;}
   .lgu:hover{stroke:var(--ink); stroke-width:1.4;}
-  .lgu.dim{opacity:0.18;}
+  .lgu.dim{opacity:0.12;}
   .prov-line{fill:none; stroke:rgba(240,240,240,0.45); stroke-width:0.7;
              vector-effect:non-scaling-stroke; pointer-events:none;}
   .mode-btn{color:var(--ink-soft); background:transparent; transition:background .15s ease, color .15s ease;}
@@ -257,8 +257,20 @@
           <button data-mode="turnout" class="mode-btn font-mono text-sm px-3 py-2">Votes cast</button>
         </div>
       </div>
+      <div>
+        <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1" for="map-region">Region</label>
+        <select id="map-region" class="font-mono text-sm border hairline bg-[var(--paper)] px-3 py-2 rounded-sm"></select>
+      </div>
+      <div>
+        <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1" for="map-prov">Province</label>
+        <select id="map-prov" class="font-mono text-sm border hairline bg-[var(--paper)] px-3 py-2 rounded-sm"></select>
+      </div>
       <button id="map-reset" class="btn-ghost font-mono text-sm px-4 py-2 rounded-sm">Whole country</button>
     </div>
+    <p class="font-mono text-xs text-[var(--ink-soft)] -mt-2 mb-4">
+      Pick a region to compare its provinces; pick a province to compare its cities and
+      municipalities. Clicking the map does the same thing.
+    </p>
 
     <!-- breadcrumb -->
     <p class="font-mono text-sm text-[var(--ink-soft)] mb-3" id="map-crumb">Philippines</p>
@@ -498,9 +510,11 @@
 const MAP = {
   geo: null, data: null, loaded: false,
   race: null, mode: "winner",
-  colours: new Map(),          // colour key -> css colour, for the current race
-  byPsgc: new Map(),           // psgc -> cell, for the current race
-  focus: null,                 // province psgc we are zoomed into, or null
+  region: null, prov: null,   // what we are scoped to; null, null = whole country
+  colours: new Map(),         // colour key -> css colour, for the current race
+  byUnit: new Map(),          // psgc -> cell, for the current race AND unit
+  hi: new Map(),              // psgc -> hires feature, once its province is opened
+  pending: new Set(),         // provinces whose detail file is in flight
 };
 
 const SLOTS = ["--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8"];
@@ -521,6 +535,8 @@ const gProv    = gMap.append("g");
 const tip      = document.getElementById("map-tip");
 const elYear   = document.getElementById("map-year");
 const elRace   = document.getElementById("map-race");
+const elRegion = document.getElementById("map-region");
+const elProv   = document.getElementById("map-prov");
 const elCrumb  = document.getElementById("map-crumb");
 const elLegend = document.getElementById("map-legend");
 const elDetail = document.getElementById("map-detail");
@@ -531,6 +547,28 @@ const fmt = n => n.toLocaleString();
 const pct = (a, b) => b > 0 ? (100 * a / b).toFixed(1) + "%" : "—";
 const title = s => s.replace(/\w\S*/g, w => w[0] + w.slice(1).toLowerCase())
                     .replace(/\bOf\b/g, "of");
+
+// Open a region and you compare its provinces; open a province and you compare its
+// cities and municipalities.
+//
+// Except for a mayoral race, where a province total would be a lie: Baguio's mayoral
+// race and Itogon's are different elections between different people, so adding them
+// up describes nothing. The build script refuses to aggregate those, and asking for a
+// region shows you its municipalities instead - which is the honest answer to "how did
+// CAR vote for mayor" anyway.
+const canAggregate = () => MAP.data.provinceLevel.includes(elRace.value);
+const unit = () => (MAP.region && !MAP.prov && canAggregate()) ? "prov" : "lgu";
+
+/** The features currently being coloured. */
+function activeFeatures(){
+  if(unit() === "prov")
+    return provFeatures.filter(f => f.properties.r === MAP.region);
+  if(MAP.prov)
+    return lguFeatures.filter(f => f.properties.p === MAP.prov);
+  if(MAP.region)
+    return lguFeatures.filter(f => f.properties.r === MAP.region);
+  return lguFeatures;
+}
 
 // ---------- load ----------
 function loadMap(){
@@ -554,6 +592,57 @@ new IntersectionObserver((entries, obs) => {
   if(entries.some(e => e.isIntersecting)){ loadMap(); obs.disconnect(); }
 }, {rootMargin: "300px"}).observe(document.getElementById("map"));
 
+/**
+ * The national file is medres, which is all the whole-country view can resolve.
+ * Zoomed into one province that is visibly blocky, so each province also has a
+ * hires file - fetched only when someone actually opens it, ~35 KB gzipped.
+ * Until it lands the medres shapes stay on screen; there is no blank frame.
+ */
+function loadDetail(prov){
+  if(!prov || MAP.pending.has(prov)) return;
+  const members = lguFeatures.filter(f => f.properties.p === prov);
+  if(members.every(f => MAP.hi.has(f.properties.id))) return;
+  MAP.pending.add(prov);
+
+  fetch(`map_geo_prov/${prov}.json`).then(r => r.json()).then(j => {
+    const [sx, sy] = j.transform.scale, [tx, ty] = j.transform.translate;
+    for(const f of j.features){
+      const polys = f.rings.map(poly => poly.map(ring => {
+        let x = 0, y = 0;
+        return ring.map(([dx, dy]) => {
+          x += dx; y += dy;
+          return [x * sx + tx, y * sy + ty];
+        });
+      }));
+      MAP.hi.set(f.id, {
+        type: "Feature",
+        geometry: {
+          type: polys.length === 1 ? "Polygon" : "MultiPolygon",
+          coordinates: polys.length === 1 ? polys[0] : polys,
+        },
+      });
+    }
+    redrawPaths();
+  }).catch(() => {/* the medres shape stays; nothing breaks */});
+}
+
+/** Whatever the current scope is about to draw at municipality level, fetch crisply. */
+function ensureDetail(){
+  if(MAP.prov) return loadDetail(MAP.prov);
+  if(MAP.region && unit() === "lgu"){
+    // A region is only ever a handful of provinces, so this is a few small fetches.
+    [...new Set(lguFeatures.filter(f => f.properties.r === MAP.region)
+                           .map(f => f.properties.p))].forEach(loadDetail);
+  }
+}
+
+/** Use the hires outline wherever we have one. */
+const shapeOf = d => path(MAP.hi.get(d.properties.id) || d);
+
+function redrawPaths(){
+  gLgu.selectAll(".lgu").attr("d", shapeOf);
+}
+
 // ---------- set up ----------
 function initMap(){
   const geo = MAP.geo;
@@ -561,111 +650,193 @@ function initMap(){
   provFeatures = topojson.feature(geo, geo.objects.provs).features;
 
   const box = svg.node().getBoundingClientRect();
-  const w = box.width, h = box.height;
 
   // Equal-area, because this is a choropleth: a Mercator would inflate Luzon
   // relative to Mindanao and quietly overstate the north.
   projection = d3.geoConicEqualArea()
     .parallels([8, 18]).rotate([-122, 0])
-    .fitSize([w, h], {type: "FeatureCollection", features: lguFeatures});
+    .fitSize([box.width, box.height], {type: "FeatureCollection", features: lguFeatures});
   path = d3.geoPath(projection);
 
   gLgu.selectAll("path").data(lguFeatures).join("path")
-    .attr("class", "lgu")
-    .attr("d", path)
-    .on("mousemove", onHover)
-    .on("mouseleave", offHover)
-    .on("click", onClickLgu);
+    .attr("class", "lgu").attr("d", shapeOf)
+    .on("mousemove", onHover).on("mouseleave", offHover)
+    .on("click", (e, d) => { open(d.properties.r, d.properties.p); showDetail(d); });
 
   gProv.selectAll("path").data(provFeatures).join("path")
-    .attr("class", "prov-line")
-    .attr("d", path);
+    .attr("d", path)
+    .on("mousemove", onHover).on("mouseleave", offHover)
+    .on("click", (e, d) => { if(unit() === "prov") open(d.properties.r, d.properties.id); });
 
-  zoom = d3.zoom().scaleExtent([1, 40])
+  zoom = d3.zoom().scaleExtent([1, 60])
     .on("zoom", e => {
       gMap.attr("transform", e.transform);
-      gMap.selectAll(".lgu").style("stroke-width", 0.3 / Math.sqrt(e.transform.k));
+      gMap.selectAll("path").style("stroke-width", null);
     });
   svg.call(zoom);
 
-  // races, newest first
   const years = [...new Set(MAP.data.races.map(r => r[0]))].sort((a, b) => b - a);
   elYear.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join("");
   elYear.value = 2025;
   fillRaces();
   elRace.value = "MAYOR";
 
-  elYear.addEventListener("change", () => { fillRaces(); draw(); });
-  elRace.addEventListener("change", draw);
+  // Regions, in PSGC order, which is roughly north to south.
+  elRegion.innerHTML = `<option value="">All regions</option>` +
+    Object.entries(MAP.geo.regions).sort()
+      .map(([id, n]) => `<option value="${id}">${n}</option>`).join("");
+  fillProvinces();
+
+  elYear.addEventListener("change", () => { fillRaces(); ensureDetail(); draw(); });
+  elRace.addEventListener("change", () => { ensureDetail(); draw(); });
+  elRegion.addEventListener("change", () => open(elRegion.value || null, null));
+  elProv.addEventListener("change", () => {
+    const p = elProv.value || null;
+    open(p ? MAP.geo.adm2[p].r : MAP.region, p);
+  });
   document.querySelectorAll(".mode-btn").forEach(b => {
     b.addEventListener("click", () => { MAP.mode = b.dataset.mode; draw(); });
   });
-  document.getElementById("map-reset").addEventListener("click", resetZoom);
+  document.getElementById("map-reset").addEventListener("click", () => open(null, null));
 
   draw();
 }
 
 function fillRaces(){
-  const y = +elYear.value;
-  const keep = elRace.value;
-  const races = MAP.data.races
-    .map((r, i) => ({i, year: r[0], pos: r[1]}))
-    .filter(r => r.year === y);
+  const y = +elYear.value, keep = elRace.value;
+  const races = MAP.data.races.filter(r => r[0] === y);
   elRace.innerHTML = races
-    .map(r => `<option value="${r.pos}">${title(r.pos)}</option>`).join("");
-  elRace.value = races.some(r => r.pos === keep) ? keep : races[0].pos;
+    .map(r => `<option value="${r[1]}">${title(r[1])}</option>`).join("");
+  elRace.value = races.some(r => r[1] === keep) ? keep : races[0][1];
+}
+
+function fillProvinces(){
+  const inScope = Object.entries(MAP.geo.adm2)
+    .filter(([, v]) => !MAP.region || v.r === MAP.region)
+    .sort((a, b) => a[1].n.localeCompare(b[1].n));
+  elProv.innerHTML = `<option value="">All provinces</option>` +
+    inScope.map(([id, v]) => `<option value="${id}">${v.n}</option>`).join("");
+  elProv.value = MAP.prov || "";
+}
+
+// ---------- scope ----------
+/** The one way in or out of a region / province. Everything else calls this. */
+function open(region, prov){
+  MAP.region = region || null;
+  MAP.prov = prov || null;
+  elRegion.value = MAP.region || "";
+  fillProvinces();
+  ensureDetail();
+  draw();
+  zoomToScope();
+}
+
+function zoomToScope(){
+  const box = svg.node().getBoundingClientRect();
+  if(!MAP.region && !MAP.prov){
+    svg.transition().duration(650).call(zoom.transform, d3.zoomIdentity);
+    return;
+  }
+  const members = MAP.prov
+    ? lguFeatures.filter(f => f.properties.p === MAP.prov)
+    : lguFeatures.filter(f => f.properties.r === MAP.region);
+  if(!members.length) return;
+
+  const [[x0, y0], [x1, y1]] = path.bounds({type: "FeatureCollection", features: members});
+  const k = Math.min(60, 0.92 / Math.max((x1 - x0) / box.width, (y1 - y0) / box.height));
+  svg.transition().duration(650).call(zoom.transform, d3.zoomIdentity
+    .translate(box.width / 2, box.height / 2).scale(k)
+    .translate(-(x0 + x1) / 2, -(y0 + y1) / 2));
+}
+
+function crumb(){
+  const bits = [`<a href="#" data-to="home" class="underline">Philippines</a>`];
+  if(MAP.region){
+    const rn = MAP.geo.regions[MAP.region] || "";
+    bits.push(MAP.prov
+      ? `<a href="#" data-to="region" class="underline">${rn}</a>`
+      : `<span style="color:var(--ink)">${rn}</span>`);
+  }
+  if(MAP.prov)
+    bits.push(`<span style="color:var(--ink)">${MAP.geo.adm2[MAP.prov].n}</span>`);
+  elCrumb.innerHTML = bits.join(" › ");
+  elCrumb.querySelectorAll("a").forEach(a => a.addEventListener("click", e => {
+    e.preventDefault();
+    a.dataset.to === "home" ? open(null, null) : open(MAP.region, null);
+  }));
 }
 
 // ---------- draw ----------
 function draw(){
   const y = +elYear.value, pos = elRace.value;
-  const ri = MAP.data.races.findIndex(r => r[0] === y && r[1] === pos);
-  MAP.race = ri;
+  MAP.race = MAP.data.races.findIndex(r => r[0] === y && r[1] === pos);
 
-  MAP.byPsgc = new Map();
-  for(const c of MAP.data.cells) if(c[0] === ri) MAP.byPsgc.set(c[1], c);
+  // Province rows are summed from the full ballots at build time, not from the
+  // per-town top six, so a candidate who runs sixth everywhere still shows up in
+  // the provincial total he actually leads.
+  const src = unit() === "prov" ? MAP.data.pcells : MAP.data.cells;
+  MAP.byUnit = new Map();
+  for(const c of src) if(c[0] === MAP.race) MAP.byUnit.set(c[1], c);
 
   document.querySelectorAll(".mode-btn").forEach(b =>
     b.setAttribute("aria-pressed", String(b.dataset.mode === MAP.mode)));
 
-  MAP.mode === "winner" ? drawWinner(pos) : drawTurnout(pos);
+  const showProv = unit() === "prov";
+  const active = new Set(activeFeatures().map(f => f.properties.id));
+
+  gLgu.selectAll(".lgu")
+    .style("display", showProv ? "none" : null)
+    .classed("dim", d => !active.has(d.properties.id));
+  gProv.selectAll("path")
+    .attr("class", showProv ? "lgu" : "prov-line")
+    .classed("dim", d => showProv && !active.has(d.properties.id))
+    // Province mode sets an inline fill, and an inline fill beats .prov-line's
+    // fill:none - so clear it here. drawWinner/drawTurnout put it back on whichever
+    // layer is actually being coloured, a few lines below.
+    .style("fill", null);
+
+  const sel = showProv ? gProv.selectAll("path") : gLgu.selectAll(".lgu");
+  MAP.mode === "winner" ? drawWinner(sel, active, pos) : drawTurnout(sel, active, pos);
+
+  crumb();
   offHover();
 }
 
-/** The key a locality is coloured by: the leading candidate, or their party. */
+/** The key a unit is coloured by: the leading candidate, or their party. */
 function leaderKey(cell, pos){
   const [id] = cell[3][0];
   const [name, party] = MAP.data.candidates[id];
   return BY_PARTY.has(pos) ? (party || "Independent") : name;
 }
 
-function drawWinner(pos){
-  // Rank the contenders by how many localities each led, and give the top eight
-  // the eight slots in fixed order. A ninth is "Other" - never a ninth hue.
+const unitWord = () => unit() === "prov" ? "province" : "city and municipality";
+
+function drawWinner(sel, active, pos){
+  // Rank the contenders by how many units each led, and give the top eight the
+  // eight slots in fixed order. A ninth is "Other" - never a ninth hue. The count
+  // is over the units on screen, so scoping to a region re-ranks to that region.
   const led = new Map();
-  for(const cell of MAP.byPsgc.values()){
+  for(const id of active){
+    const cell = MAP.byUnit.get(id);
+    if(!cell) continue;
     const k = leaderKey(cell, pos);
     led.set(k, (led.get(k) || 0) + 1);
   }
   const ranked = [...led.entries()].sort((a, b) => b[1] - a[1]);
   const top = ranked.slice(0, 8);
+  MAP.colours = new Map(top.map(([k], i) => [k, `var(${SLOTS[i]})`]));
 
-  MAP.colours = new Map(top.map(([k], i) =>
-    [k, `var(${SLOTS[i]})`]));
-
-  gLgu.selectAll(".lgu")
-    .style("fill", d => {
-      const cell = MAP.byPsgc.get(d.properties.id);
-      if(!cell) return "var(--no-data)";
-      return MAP.colours.get(leaderKey(cell, pos)) || "var(--s-other)";
-    })
-    .style("fill-opacity", 1);
+  sel.style("fill", d => {
+    const cell = MAP.byUnit.get(d.properties.id);
+    if(!cell) return "var(--no-data)";
+    return MAP.colours.get(leaderKey(cell, pos)) || "var(--s-other)";
+  });
 
   const others = ranked.length - top.length;
   document.getElementById("legend-title").textContent = "Who led";
-  document.getElementById("legend-note").textContent = BY_PARTY.has(pos)
-    ? "Party of the candidate who led each city and municipality."
-    : "Candidate who led each city and municipality.";
+  document.getElementById("legend-note").textContent =
+    (BY_PARTY.has(pos) ? "Party of the candidate who led each " : "Candidate who led each ")
+    + unitWord() + ".";
 
   elLegend.innerHTML = top.map(([k, n], i) => `
     <li class="flex items-center gap-2">
@@ -679,33 +850,28 @@ function drawWinner(pos){
       <span class="flex-1 text-[var(--ink-soft)]">Other (${others})</span>
       <span class="font-mono text-xs text-[var(--ink-soft)]">${
         fmt(ranked.slice(8).reduce((a, b) => a + b[1], 0))}</span>
-    </li>` : "")
-    + `<li class="flex items-center gap-2 pt-1">
-      <span class="swatch" style="background:var(--no-data)"></span>
-      <span class="flex-1 text-[var(--ink-soft)]">No result this cycle</span>
-    </li>`;
+    </li>` : "");
 }
 
-function drawTurnout(pos){
-  const totals = [...MAP.byPsgc.values()].map(c => c[2]);
-  // Votes cast is heavily skewed - Quezon City casts 400x what Kalayaan does - so
-  // the ramp is cut on quantiles of the actual distribution, not on equal
-  // intervals, which would paint the whole country the palest step but for a
-  // dozen cities.
+function drawTurnout(sel, active, pos){
+  const totals = [...active].map(id => MAP.byUnit.get(id))
+                            .filter(Boolean).map(c => c[2]);
+  // Votes cast is brutally skewed - Quezon City casts several hundred times what
+  // the smallest town does - so the ramp is cut on quantiles of the actual
+  // distribution. Equal intervals would paint the whole country the palest step
+  // but for a dozen cities.
   const scale = d3.scaleQuantile().domain(totals).range(RAMP);
   MAP.colours = null;
 
-  gLgu.selectAll(".lgu")
-    .style("fill", d => {
-      const cell = MAP.byPsgc.get(d.properties.id);
-      return cell ? scale(cell[2]) : "var(--no-data)";
-    })
-    .style("fill-opacity", 1);
+  sel.style("fill", d => {
+    const cell = MAP.byUnit.get(d.properties.id);
+    return cell ? scale(cell[2]) : "var(--no-data)";
+  });
 
   const cuts = scale.quantiles();
   document.getElementById("legend-title").textContent = "Votes cast";
   document.getElementById("legend-note").textContent =
-    `Total ballots counted in this race, per city and municipality. Nine equal-count bands.`;
+    `Ballots counted in this race, per ${unitWord()}. Nine equal-count bands.`;
   elLegend.innerHTML = RAMP.map((c, i) => {
     const lo = i === 0 ? d3.min(totals) : cuts[i - 1];
     const hi = i === RAMP.length - 1 ? d3.max(totals) : cuts[i];
@@ -718,10 +884,13 @@ function drawTurnout(pos){
 
 // ---------- interaction ----------
 function onHover(event, d){
-  const cell = MAP.byPsgc.get(d.properties.id);
-  const prov = MAP.geo.adm2[d.properties.p];
+  const cell = MAP.byUnit.get(d.properties.id);
+  const parent = unit() === "prov"
+    ? (MAP.geo.regions[d.properties.r] || "")
+    : (MAP.geo.adm2[d.properties.p] || {}).n || "";
+
   let html = `<p class="font-medium">${d.properties.n}</p>
-    <p class="text-[var(--ink-soft)]">${prov ? prov.n : ""}</p>`;
+    <p class="text-[var(--ink-soft)]">${parent}</p>`;
   if(cell){
     const [id, v] = cell[3][0];
     const [name, party] = MAP.data.candidates[id];
@@ -733,56 +902,15 @@ function onHover(event, d){
   tip.innerHTML = html;
   tip.classList.remove("hidden");
   const box = svg.node().getBoundingClientRect();
-  const x = event.clientX - box.left, y = event.clientY - box.top;
-  tip.style.left = Math.min(x + 14, box.width - 240) + "px";
-  tip.style.top = Math.max(y - 10, 4) + "px";
+  tip.style.left = Math.min(event.clientX - box.left + 14, box.width - 240) + "px";
+  tip.style.top = Math.max(event.clientY - box.top - 10, 4) + "px";
 }
 
 function offHover(){ tip.classList.add("hidden"); }
 
-function onClickLgu(event, d){
-  // First click on a town in an un-zoomed map goes to its province; a second,
-  // once you are already there, opens the town itself.
-  if(MAP.focus !== d.properties.p) zoomTo(d.properties.p);
-  showDetail(d);
-}
-
-function zoomTo(provPsgc){
-  MAP.focus = provPsgc;
-  const members = lguFeatures.filter(f => f.properties.p === provPsgc);
-  const fc = {type: "FeatureCollection", features: members};
-  const [[x0, y0], [x1, y1]] = path.bounds(fc);
-  const box = svg.node().getBoundingClientRect();
-  const k = Math.min(40, 0.9 / Math.max((x1 - x0) / box.width, (y1 - y0) / box.height));
-  const t = d3.zoomIdentity
-    .translate(box.width / 2, box.height / 2)
-    .scale(k)
-    .translate(-(x0 + x1) / 2, -(y0 + y1) / 2);
-  svg.transition().duration(650).call(zoom.transform, t);
-
-  gLgu.selectAll(".lgu").classed("dim", f => f.properties.p !== provPsgc);
-  const prov = MAP.geo.adm2[provPsgc];
-  const reg = prov ? MAP.geo.regions[prov.r] : "";
-  elCrumb.innerHTML =
-    `<a href="#" id="crumb-home" class="underline">Philippines</a> ›
-     <span class="text-[var(--ink-soft)]">${reg || ""}</span> ›
-     <span style="color:var(--ink)">${prov ? prov.n : ""}</span>`;
-  document.getElementById("crumb-home")
-    .addEventListener("click", e => { e.preventDefault(); resetZoom(); });
-}
-
-function resetZoom(){
-  MAP.focus = null;
-  svg.transition().duration(650).call(zoom.transform, d3.zoomIdentity);
-  gLgu.selectAll(".lgu").classed("dim", false);
-  elCrumb.textContent = "Philippines";
-  elDetail.innerHTML =
-    `<p class="text-sm text-[var(--ink-soft)]">Hover a town to see who led it. Click for the full tally.</p>`;
-}
-
 function showDetail(d){
-  const cell = MAP.byPsgc.get(d.properties.id);
-  const prov = MAP.geo.adm2[d.properties.p];
+  const cell = MAP.byUnit.get(d.properties.id);
+  const parent = (MAP.geo.adm2[d.properties.p] || {}).n || "";
   if(!cell){
     elDetail.innerHTML = `<p class="font-display font-semibold text-lg">${d.properties.n}</p>
       <p class="text-sm text-[var(--ink-soft)] mt-1">No result in this race this cycle.</p>`;
@@ -800,12 +928,11 @@ function showDetail(d){
       <div class="tally-bar mt-1" style="background:${colour}; width:${Math.max(2, 100 * v / cell[2])}%"></div>
     </li>`;
   }).join("");
-  const shown = cell[3].reduce((a, [, v]) => a + v, 0);
-  const rest = cell[2] - shown;
+  const rest = cell[2] - cell[3].reduce((a, [, v]) => a + v, 0);
 
   elDetail.innerHTML = `
     <p class="font-display font-semibold text-lg leading-tight">${d.properties.n}</p>
-    <p class="text-xs text-[var(--ink-soft)] mb-1">${prov ? prov.n : ""}</p>
+    <p class="text-xs text-[var(--ink-soft)] mb-1">${parent}</p>
     <p class="font-mono text-xs text-[var(--ink-soft)] mb-4">
       ${title(elRace.value)} · ${elYear.value} · ${fmt(cell[2])} votes cast</p>
     <ul>${rows}</ul>
