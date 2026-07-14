@@ -62,6 +62,14 @@ WITHHELD = {(2022, "PRESIDENT"), (2022, "VICE PRESIDENT"),
 
 TOP_N = 6          # candidates kept per locality per race; the rest fold into "others"
 
+# Races whose votes MEAN something when you add up a province. A president, a senator and a
+# party list are the same contest in every town, and a governor is one contest per province,
+# so summing is just canvassing. A MAYOR is not: Baguio's mayoral race and Itogon's are
+# different elections between different people, and adding them together produces a number
+# that describes nothing. So the province layer simply does not carry mayor, and the map
+# falls back to drawing municipalities when you ask for one.
+PROVINCE_LEVEL = {"PRESIDENT", "VICE PRESIDENT", "SENATOR", "PARTY LIST", "GOVERNOR"}
+
 # COMELEC's province for a locality vs the PSGC adm2 unit that actually holds it.
 PROVINCE_ALIAS = {
     "NCR FIRST DISTRICT":  ["1303900000"],   # "NCR, City of Manila, First District"
@@ -242,29 +250,43 @@ def main():
             cands.append([name, party if isinstance(party, str) else ""])
         return cand_index[key]
 
-    races, cells = [], []
+    # The province a locality is drawn inside. Not the province COMELEC files it under:
+    # Cebu City's votes belong in Cebu's provincial total on the map even though PSGC makes
+    # the city its own adm2 unit.
+    df["prov"] = df.psgc.map(lambda p: lgus[p]["prov"])
+
+    races, cells, pcells = [], [], []
     race_index = {}
+
+    def tally_of(frame):
+        t = (frame.groupby(["candidate_name", "party"], as_index=False)["votes"].sum()
+                  .sort_values("votes", ascending=False))
+        total = int(t.votes.sum())
+        if total <= 0:
+            return None                      # BARMM parliament rows are all zero; skip
+        return total, [[cid(r.candidate_name, r.party), int(r.votes)]
+                       for r in t.head(TOP_N).itertuples()]
+
     for (year, pos), grp in df.groupby(["year", "position"], sort=True):
-        key = f"{year}|{pos}"
-        race_index[key] = len(races)
+        race_index[f"{year}|{pos}"] = ri = len(races)
         races.append([int(year), pos])
-        ri = race_index[key]
 
         for psgc, loc in grp.groupby("psgc"):
-            tally = (loc.groupby(["candidate_name", "party"], as_index=False)["votes"]
-                        .sum()
-                        .sort_values("votes", ascending=False))
-            total = int(tally.votes.sum())
-            if total <= 0:
-                continue                     # BARMM parliament rows are all zero; skip
-            top = tally.head(TOP_N)
-            cells.append([
-                ri, psgc,
-                total,
-                [[cid(r.candidate_name, r.party), int(r.votes)] for r in top.itertuples()],
-            ])
+            t = tally_of(loc)
+            if t:
+                cells.append([ri, psgc, t[0], t[1]])
 
-    say(f"\n{len(races)} races, {len(cells):,} locality-races, {len(cands):,} candidates")
+        # Province totals are summed from the FULL ballots, not from the per-locality top
+        # six - a candidate who runs sixth in every town would otherwise vanish from the
+        # provincial tally he actually leads.
+        if pos in PROVINCE_LEVEL:
+            for prov, loc in grp.groupby("prov"):
+                t = tally_of(loc)
+                if t:
+                    pcells.append([ri, prov, t[0], t[1]])
+
+    say(f"\n{len(races)} races, {len(cells):,} locality-races, "
+        f"{len(pcells):,} province-races, {len(cands):,} candidates")
     for i, (y, p) in enumerate(races):
         n = sum(1 for c in cells if c[0] == i)
         say(f"   {y}  {p:<16} {n:>5} localities")
@@ -278,7 +300,9 @@ def main():
     payload = {
         "races": races,          # [[year, position], ...]
         "candidates": cands,     # [[name, party], ...]
-        "cells": cells,          # [raceIdx, psgc, totalVotes, [[candIdx, votes], ...]]
+        "cells": cells,          # [raceIdx, lguPsgc,  totalVotes, [[candIdx, votes], ...]]
+        "pcells": pcells,        # the same, aggregated to the province - see PROVINCE_LEVEL
+        "provinceLevel": sorted(PROVINCE_LEVEL),
     }
     OUT.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
     mb = OUT.stat().st_size / 1e6

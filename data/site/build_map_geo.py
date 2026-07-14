@@ -54,6 +54,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 OUT = Path(__file__).resolve().parent / "map_geo.json"
+DETAIL = Path(__file__).resolve().parent / "map_geo_prov"   # one hires file per province
 REPORT = Path(__file__).resolve().parent / "map_geo_report.txt"
 CACHE = Path(__file__).resolve().parent / ".geo_cache"
 
@@ -266,34 +267,13 @@ def polygon_lonlat(topo, geom):
 
 # ---------------------------------------------------------------- build
 
-def main():
-    log = []
-
-    def say(msg):
-        print(msg)
-        log.append(msg)
-
-    say(f"resolution: {RES} ({TOL})")
-    say("fetching the upstream file tree ...")
-    tree = get(TREE)
-    if tree.get("truncated"):
-        sys.exit("upstream tree came back truncated; cannot enumerate the LGUs")
-    paths = [e["path"] for e in tree["tree"] if e["type"] == "blob"]
-
-    prov_files = [p for p in paths if p.startswith(f"2023/topojson/regions/{RES}/")]
-    mun_files = [p for p in paths if p.startswith(f"2023/topojson/provdists/{RES}/")]
+def collect(res, tol, psgc_name, paths, say):
+    """Every LGU and adm2 unit at one resolution, as lon/lat rings."""
+    prov_files = [p for p in paths if p.startswith(f"2023/topojson/regions/{res}/")]
+    mun_files = [p for p in paths if p.startswith(f"2023/topojson/provdists/{res}/")]
     lgu_files = {re.search(r"municity-(\d+)\.topo", p).group(1).zfill(10): p
-                 for p in paths if p.startswith(f"2023/topojson/municities/{RES}/")}
-    say(f"  {len(prov_files)} province files, {len(mun_files)} province->LGU files, "
-        f"{len(lgu_files)} LGU->barangay files")
+                 for p in paths if p.startswith(f"2023/topojson/municities/{res}/")}
 
-    # --- the PSA's own name register -------------------------------------------------
-    say("fetching PSGC names from the PSA register ...")
-    psgc_name = {r["psgc10DigitCode"]: r["name"] for r in get(PSGC_API)}
-    say(f"  {len(psgc_name)} cities and municipalities on record")
-
-    # --- provinces: names AND outlines -----------------------------------------------
-    say("reading provinces ...")
     provinces, adm2 = {}, {}
     with ThreadPoolExecutor(8) as pool:
         for topo in pool.map(lambda p: get(f"{RAW}/{p.split('/topojson/')[1]}"), prov_files):
@@ -301,51 +281,41 @@ def main():
                 for g in obj["geometries"]:
                     pr = g["properties"]
                     psgc = str(pr["adm2_psgc"]).zfill(10)
-                    # Every adm2 unit gets a name, whether or not it has an outline. The
+                    # Every adm2 unit gets a name whether or not it has an outline. The
                     # Special Geographic Area has none upstream, and without this it would
                     # drop out of the index the vote join resolves province names against.
                     adm2[psgc] = {"n": pr.get("adm2_en") or SGA_NAME,
                                   "r": str(pr["adm1_psgc"]).zfill(10)}
                     if g.get("type") is None or "arcs" not in g:
                         continue
-                    provinces[psgc] = {
-                        "name": adm2[psgc]["n"],
-                        "region": adm2[psgc]["r"],
-                        "rings": polygon_lonlat(topo, g),
-                    }
-    say(f"  {len(adm2)} adm2 units (82 provinces + 4 NCR districts + 2 specials), "
-        f"{len(provinces)} with an outline")
+                    provinces[psgc] = {"name": adm2[psgc]["n"],
+                                       "region": adm2[psgc]["r"],
+                                       "rings": polygon_lonlat(topo, g)}
 
-    # --- municipalities inside provinces --------------------------------------------
-    say("reading municipalities ...")
-    lgus = {}   # psgc -> {name, prov, reg, rings}
-    empty = []
+    lgus, empty = {}, []
     with ThreadPoolExecutor(8) as pool:
         for topo in pool.map(lambda p: get(f"{RAW}/{p.split('/topojson/')[1]}"), mun_files):
             for obj in topo["objects"].values():
                 for g in obj["geometries"]:
                     pr = g["properties"]
                     psgc = str(pr["adm3_psgc"]).zfill(10)
-                    # Kalayaan (the Spratlys) carries a null geometry upstream: its islands
-                    # are far too small to survive the 0.001 simplification. It is a real
-                    # municipality with real votes, so it is recorded here rather than
-                    # quietly dropped - it simply cannot be drawn.
+                    # Kalayaan (the Spratlys) and Limasawa carry null geometries at the
+                    # coarser tolerances: their islands do not survive simplification. They
+                    # are real municipalities with real votes, so they are recorded rather
+                    # than quietly dropped - they simply cannot be drawn at that resolution.
                     if g.get("type") is None or "arcs" not in g:
                         empty.append((psgc, pr.get("adm3_en")))
                         continue
-                    lgus[psgc] = {
-                        "name": pr["adm3_en"],
-                        "prov": str(pr["adm2_psgc"]).zfill(10),
-                        "reg": str(pr["adm1_psgc"]).zfill(10),
-                        "rings": polygon_lonlat(topo, g),
-                    }
-    say(f"  {len(lgus)} LGUs from the province decomposition")
+                    lgus[psgc] = {"name": pr["adm3_en"],
+                                  "prov": str(pr["adm2_psgc"]).zfill(10),
+                                  "reg": str(pr["adm1_psgc"]).zfill(10),
+                                  "rings": polygon_lonlat(topo, g)}
     for psgc, name in empty:
-        say(f"  NO GEOMETRY UPSTREAM: {psgc} {name} - too small to draw at this resolution")
+        say(f"  no geometry at {res}: {psgc} {name}")
 
-    # --- the ones that decomposition cannot reach ------------------------------------
+    # The ones a province decomposition structurally cannot reach: the 16 PSGC-independent
+    # cities and the 8 SGA municipalities. Dissolve them up out of their barangays.
     missing = sorted(set(lgu_files) - set(lgus))
-    say(f"\n{len(missing)} LGUs are in no province's file; dissolving them from barangays:")
 
     def build_missing(psgc):
         topo = get(f"{RAW}/{lgu_files[psgc].split('/topojson/')[1]}")
@@ -356,10 +326,8 @@ def main():
         # an SGA municipality's names the municipality itself. Neither is a province, so
         # neither can be drilled into - both are refiled under the adm2 a reader would look
         # for them in.
-        if psgc in SGA_NAMES:
-            parent = SGA_ADM2
-        else:
-            parent = INDEPENDENT_CITY_PARENT.get(psgc, str(pr["adm2_psgc"]).zfill(10))
+        parent = (SGA_ADM2 if psgc in SGA_NAMES
+                  else INDEPENDENT_CITY_PARENT.get(psgc, str(pr["adm2_psgc"]).zfill(10)))
         return psgc, {
             # Barangay files carry no LGU name at all, so it comes from the PSA register -
             # or, for the 2024 SGA municipalities the register predates, from SGA_NAMES.
@@ -367,34 +335,45 @@ def main():
             "prov": parent,
             "reg": str(pr["adm1_psgc"]).zfill(10),
             "rings": rings,
-            "_bgys": len(obj["geometries"]),
         }
 
     with ThreadPoolExecutor(8) as pool:
         for psgc, rec in pool.map(build_missing, missing):
-            parent = provinces.get(rec["prov"], {}).get("name", "?")
-            name = rec["name"] or "** name unresolved **"
-            say(f"   {psgc}  {name:<28} {rec.pop('_bgys'):>3} barangays "
-                f"-> {len(rec['rings'])} polygon(s), under {parent}")
             lgus[psgc] = rec
+    say(f"  {res}: {len(lgus)} LGUs ({len(missing)} dissolved from barangays), "
+        f"{len(adm2)} adm2 units")
 
-    if SGA_ADM2 in provinces:
-        provinces[SGA_ADM2]["name"] = SGA_NAME
+    provinces.setdefault(SGA_ADM2, None)
+    if provinces[SGA_ADM2] is None:
+        del provinces[SGA_ADM2]
     adm2.setdefault(SGA_ADM2, {"n": SGA_NAME, "r": "1900000000"})
+    return lgus, provinces, adm2
 
-    unnamed = sorted(p for p, l in lgus.items() if not l["name"])
-    if unnamed:
-        say(f"\nWARNING: {len(unnamed)} LGUs have boundaries but no name: {unnamed}")
 
-    say(f"\ntotal LGUs: {len(lgus)}")
+def main():
+    log = []
 
-    # --- quantise everything onto one grid -------------------------------------------
-    # Both layers share one grid and one arc table, so a province border and the municipal
-    # borders that trace it quantise to the same integers and collapse to one arc.
-    layers = {"lgus": lgus, "provs": provinces}
-    xs = [x for lay in layers.values() for l in lay.values()
+    def say(msg):
+        print(msg)
+        log.append(msg)
+
+    say("fetching the upstream file tree ...")
+    tree = get(TREE)
+    if tree.get("truncated"):
+        sys.exit("upstream tree came back truncated; cannot enumerate the LGUs")
+    paths = [e["path"] for e in tree["tree"] if e["type"] == "blob"]
+
+    say("fetching PSGC names from the PSA register ...")
+    psgc_name = {r["psgc10DigitCode"]: r["name"] for r in get(PSGC_API)}
+    say(f"  {len(psgc_name)} cities and municipalities on record")
+
+    # ---------------------------------------------------------------- the national file
+    say(f"\nbuilding the national layer at {RES} ...")
+    lgus, provinces, adm2 = collect(RES, TOL, psgc_name, paths, say)
+
+    xs = [x for lay in (lgus, provinces) for l in lay.values()
           for poly in l["rings"] for r in poly for x, _ in r]
-    ys = [y for lay in layers.values() for l in lay.values()
+    ys = [y for lay in (lgus, provinces) for l in lay.values()
           for poly in l["rings"] for r in poly for _, y in r]
     x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
     sx, sy = (x1 - x0) / (QUANT - 1), (y1 - y0) / (QUANT - 1)
@@ -420,26 +399,71 @@ def main():
         arcs.append(dedup)
         return len(arcs) - 1
 
-    # A handful of small LGUs do not survive even medres - Penarrubia is a 4-point sliver
-    # with no interior. Rather than ship the whole country at hires for their sake, refetch
-    # just those from hires, where they are intact.
+    # A few small LGUs do not survive medres - Penarrubia comes through as a 4-point sliver
+    # with no interior. Rather than ship the whole country at hires for their sake, take
+    # those from the hires pass, where they are intact.
     def degenerate(unit):
-        return not any(len({q(p) for p in ring}) >= 3 for poly in unit["rings"] for ring in poly)
+        return not any(len({q(p) for p in ring}) >= 3
+                       for poly in unit["rings"] for ring in poly)
+
+    # ---------------------------------------------------------------- the detail files
+    # The national view is drawn at medres, which is all it can resolve anyway. The moment
+    # you zoom into a province, medres is visibly blocky - so each province ALSO gets a
+    # hires file, fetched only when someone actually opens that province. 12 MB across all
+    # 88, but ~18 KB gzipped for the one you asked for.
+    say(f"\nbuilding the per-province detail layer at hires ...")
+    hi_lgus, _, _ = collect("hires", "0.1", psgc_name, paths, say)
+
+    DETAIL.mkdir(exist_ok=True)
+    for f in DETAIL.glob("*.json"):
+        f.unlink()
+    by_prov = defaultdict(list)
+    for psgc, l in hi_lgus.items():
+        by_prov[l["prov"]].append((psgc, l))
+
+    # Quantised and delta-encoded onto the province's own bounding box, exactly as the
+    # national file is. Plain GeoJSON floats came to 31 MB across the 88; this is a third
+    # of that for the same geometry - a 16-bit grid over one province is sub-metre.
+    detail_bytes = 0
+    for prov, members in by_prov.items():
+        px = [x for _, l in members for poly in l["rings"] for r in poly for x, _ in r]
+        py = [y for _, l in members for poly in l["rings"] for r in poly for _, y in r]
+        ax0, ax1, ay0, ay1 = min(px), max(px), min(py), max(py)
+        psx = (ax1 - ax0) / 65535 or 1e-9
+        psy = (ay1 - ay0) / 65535 or 1e-9
+
+        def enc_ring(ring):
+            out, lx, ly = [], 0, 0
+            for x, y in ring:
+                qx, qy = round((x - ax0) / psx), round((y - ay0) / psy)
+                out.append([qx - lx, qy - ly])
+                lx, ly = qx, qy
+            return out
+
+        path = DETAIL / f"{prov}.json"
+        path.write_text(json.dumps({
+            "transform": {"scale": [psx, psy], "translate": [ax0, ay0]},
+            "features": [{
+                "id": psgc, "n": l["name"],
+                "rings": [[enc_ring(r) for r in poly] for poly in l["rings"]],
+            } for psgc, l in sorted(members)],
+        }, separators=(",", ":")), encoding="utf-8")
+        detail_bytes += path.stat().st_size
+
+    say(f"  wrote {len(by_prov)} province files, {detail_bytes / 1e6:.1f} MB total "
+        f"(~{detail_bytes / len(by_prov) / 1e3 / 4:.0f} KB gzipped each, one at a time)")
 
     broken = [p for p, u in lgus.items() if degenerate(u)]
     if broken:
-        say(f"\n{len(broken)} LGU(s) have no interior at {RES}; refetching those from hires:")
+        say(f"\n{len(broken)} LGU(s) have no interior at {RES}; taking those from hires:")
         for psgc in broken:
-            src = f"{RAW}/provdists/hires/municities-provdist-{int(lgus[psgc]['prov'])}.topo.0.1.json"
-            topo = get(src)
-            for obj in topo["objects"].values():
-                for g in obj["geometries"]:
-                    if str(g["properties"]["adm3_psgc"]).zfill(10) == psgc and "arcs" in g:
-                        lgus[psgc]["rings"] = polygon_lonlat(topo, g)
-                        say(f"   {psgc}  {lgus[psgc]['name']} - recovered from hires")
+            if psgc in hi_lgus:
+                lgus[psgc]["rings"] = hi_lgus[psgc]["rings"]
+                say(f"   {psgc}  {lgus[psgc]['name']} - recovered from hires")
 
+    # ---------------------------------------------------------------- encode
     objects, dropped = {}, []
-    for layer, units in layers.items():
+    for layer, units in (("lgus", lgus), ("provs", provinces)):
         geoms = []
         for psgc in sorted(units):
             u = units[psgc]
@@ -452,10 +476,8 @@ def main():
                 dropped.append((layer, psgc, u["name"]))
                 continue
             props = {"id": psgc, "n": u["name"]}
-            if layer == "lgus":
-                props |= {"p": u["prov"], "r": u["reg"]}
-            else:
-                props |= {"r": u["region"]}
+            props |= ({"p": u["prov"], "r": u["reg"]} if layer == "lgus"
+                      else {"r": u["region"]})
             geoms.append({
                 "type": "Polygon" if len(polys) == 1 else "MultiPolygon",
                 "arcs": polys[0] if len(polys) == 1 else polys,
