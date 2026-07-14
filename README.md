@@ -76,7 +76,7 @@ the winners without the ballots that justify them would obscure their provenance
 
 > Leung, R., Alejandro, A., Acuna, R., Buot, J., Go, C., & Nable, J. (2026).
 > *OpenHalalan: The Philippine National and Local Election Dataset* (Version 2.0)
-> [Data set]. Zenodo. https://doi.org/10.5281/zenodo.21331500
+> [Data set]. Zenodo. https://doi.org/10.5281/zenodo.17783099
 
 ```bibtex
 @dataset{openhalalan2025,
@@ -86,19 +86,24 @@ the winners without the ballots that justify them would obscure their provenance
   year      = {2026},
   version   = {2.0},
   publisher = {Zenodo},
-  doi       = {10.5281/zenodo.21331500},
+  doi       = {10.5281/zenodo.17783099},
   url       = {https://github.com/RobertRLeung/OpenHalalan}
 }
 ```
 
-Machine-readable metadata lives in [`CITATION.cff`](CITATION.cff). The DOI is a placeholder
-until the Zenodo release is minted.
+Machine-readable metadata lives in [`CITATION.cff`](CITATION.cff).
 
-> **Superseding the old record.** The existing Zenodo DOI
-> [10.5281/zenodo.17783100](https://doi.org/10.5281/zenodo.17783100) predates the audit and
-> contains known defects — winners selected alphabetically rather than by votes in 2022, a
-> missing City of Manila, and Samar's 2025 results duplicated from Eastern Samar. It should
-> be superseded, not cited.
+> **Cite the concept DOI, not a version DOI.**
+> [10.5281/zenodo.17783099](https://doi.org/10.5281/zenodo.17783099) always resolves to the
+> newest version of the dataset. Every version-specific DOI is a snapshot, and snapshots go
+> stale: v3 remained the cited record for months after we knew its 2022 data was wrong. If
+> you need a fixed snapshot for exact reproducibility, take the version DOI from the record
+> page and say which version you used.
+
+> **Earlier records contain known defects and should not be cited.** Everything before v4
+> carries a truncated 2022: 7 of the 10 presidential candidates, no party-list race at all,
+> 57 wrong councilor winners, and no City of Manila. v4 re-scrapes 2022 from COMELEC's JSON
+> API and fixes all of it.
 
 ### Citing the research
 

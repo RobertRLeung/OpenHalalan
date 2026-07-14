@@ -37,8 +37,8 @@ abstract: >-
   Everything is reproducible from the committed raw scrapes with a single command
   (`python run_all.py`), and a completeness audit ships with the data.
 
-version: "2.0"
-date-released: "2026-01-01"
+version: "4.0"
+date-released: "2026-07-14"
 license: ODbL-1.0
 repository-code: "https://github.com/RobertRLeung/OpenHalalan"
 url: "https://github.com/RobertRLeung/OpenHalalan"
@@ -49,7 +49,11 @@ keywords:
   - political dynasties
   - open data
 
-doi: 10.5281/zenodo.21331500
+# The CONCEPT DOI, which always resolves to the newest version. Deliberately not a
+# version-specific DOI: this file pinned v3 for months after v3 was known to be wrong
+# (2022 was missing Robredo and the whole party-list race), which is exactly how a stale
+# citation sends people to bad data. Cite this and you always get the corrected dataset.
+doi: 10.5281/zenodo.17783099
 
 references:
   - type: article
