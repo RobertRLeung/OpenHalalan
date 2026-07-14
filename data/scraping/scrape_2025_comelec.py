@@ -1,451 +1,363 @@
 """
-FAST scraper for COMELEC 2025 election results.
-Optimizations:
-- Headless mode
-- Reduced wait times
-- Skip already-scraped files
-- Save to 2025_raw folder to preserve raw position names with district info
+Scrape the 2025 COMELEC results into data/raw_data/2025/ from COMELEC's JSON API.
+
+    python data/scraping/scrape_2025_comelec.py
+    python data/scraping/scrape_2025_comelec.py --province CAPIZ --force
+    python data/scraping/scrape_2025_comelec.py --verify-only
+
+Why this replaces the Selenium scraper
+--------------------------------------
+The old scraper drove a browser and read the RENDERED results table, so it captured only
+the rows the page had bothered to render. That is the same design that silently truncated
+2022 - the presidential race shipped with 7 of its 10 candidates in every municipality in
+the country - and it did not survive contact with 2025 either:
+
+    Dumalag, Capiz             16 of 155 party-list options, and NO local races at all
+    Mabuhay, Zamboanga Sibugay 14 of 155 party-list options, and NO local races at all
+
+Those two towns had no mayor, no vice mayor and no councilors in the published dataset.
+COMELEC's servers held all of it the whole time; the scraper simply never saw it.
+
+Reading a rendered table is guessing at what the data is. The API returns every ballot
+option that exists, so truncation stops being a bug that can recur and becomes a bug that
+cannot be expressed.
+
+Cloudflare, and why every fetch runs inside the browser
+-------------------------------------------------------
+Unlike 2022's site, the 2025 site sits behind a Cloudflare challenge: plain HTTP gets a 403.
+The obvious shortcut - clear the challenge in a browser, take the `cf_clearance` cookie, and
+then fetch fast with `requests` - DOES NOT WORK, and fails in a way that looks like it
+works: the cookie is bound to the client's TLS fingerprint (JA3), not merely to the cookie
+and the user-agent, and `requests` cannot reproduce Chrome's handshake. A fresh token may
+survive one or two calls and then start 403-ing mid-run.
+
+So the browser stays open and every fetch is issued from inside the page, which is the one
+client Cloudflare is certain about. Concurrency is not lost: each call hands the page a
+batch of URLs and Promise.all fetches them together.
+
+The API
+-------
+  data/regions/local/{code}.json   the location tree. categoryCode 2 = region, 3 = province,
+                                   4 = city/municipality. "0" is the root.
+  data/coc/{code}.json             a locality's certificate of canvass: every contest on its
+                                   ballot and every candidate in each, with votes.
+
+Output: data/raw_data/2025/{REGION}/{PROVINCE}/{REGION}_{PROVINCE}_{CITY}.csv, the same
+schema as every other cycle, so the compile step handles it unchanged.
+
+Completeness is checked, not assumed
+------------------------------------
+After the run it re-reads what was written and asserts what MUST be true: a national race
+is the same ballot in every town in the country, so its candidate count has to be identical
+everywhere, and a town that elects a mayor has one. Anything short is truncation by
+definition. Failures are re-fetched, and if they are still short the script exits non-zero
+and says so - because at that point the gap is COMELEC's, and a gap you report is a
+different thing from a gap you never noticed. The old scraper had no such check. That is
+why two towns sat in the published dataset with no local government in them.
 """
 
+import argparse
+import collections
+import csv
+import re
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import argparse
+from config import raw_dir
 
-from config import CONFIG, raw_dir
+BASE = "https://2025electionresults.comelec.gov.ph"
+ROOT_CODE = "0"
 
-# Set from --region / --province. Empty = scrape everything.
-ONLY_REGIONS = set()
-ONLY_PROVINCES = set()
+REGION, PROVINCE, CITY = "2", "3", "4"      # categoryCode in the region tree
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.keys import Keys
-from selenium_stealth import stealth
-import time
-import csv
-import os
-from datetime import datetime
+FIELDS = ["region", "province", "city", "position", "rank",
+          "candidate_name", "party", "votes", "percentage"]
 
-def setup_driver(headless=True):
-    """Initialize Chrome driver with stealth settings."""
-    options = webdriver.ChromeOptions()
-    if headless:
-        options.add_argument('--headless=new')
-    options.add_argument('--disable-blink-features=AutomationControlled')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
-    
-    driver = webdriver.Chrome(options=options)
-    
-    stealth(driver,
-            languages=["en-US", "en"],
-            vendor="Google Inc.",
-            platform="MacIntel",
-            webgl_vendor="Intel Inc.",
-            renderer="Intel Iris OpenGL Engine",
-            fix_hairline=True,
-            )
-    
-    if not headless:
-        driver.maximize_window()
-    return driver
+# COMELEC writes a ballot option as "12. CASTRO, JANE (LAKAS)": ballot number, name, party.
+# All three are wanted separately, and the number is not the rank - see below.
+_OPTION = re.compile(r"^\s*\d+\.\s*(.*?)\s*(?:\(([^)]*)\))?\s*$")
 
-def wait_for_page_load(driver, initial_load=False):
-    """Wait for page to fully load with optimized timing."""
-    if initial_load:
-        time.sleep(8)  # Reduced from 10
-    else:
-        time.sleep(0.3)  # Reduced from 1
-    
-    WebDriverWait(driver, 15).until(
-        lambda d: d.execute_script('return document.readyState') == 'complete'
-    )
-    if not initial_load:
-        time.sleep(0.2)  # Reduced from 0.5
 
-def click_autocomplete_field(driver, label_text):
-    """Click on a Vuetify autocomplete field to activate it."""
-    try:
-        xpath_options = [
-            f"//label[contains(text(), '{label_text}')]/following-sibling::div//input",
-            f"//label[contains(text(), '{label_text}')]/..//input",
-            f"//div[.//label[contains(text(), '{label_text}')]]//input",
-        ]
-        
-        for xpath in xpath_options:
-            try:
-                input_field = driver.find_element(By.XPATH, xpath)
-                driver.execute_script("arguments[0].scrollIntoView();", input_field)
-                time.sleep(0.1)  # Reduced from 0.2
-                input_field.click()
-                time.sleep(0.3)  # Reduced from 0.5
-                return True
-            except:
-                continue
-        
-        return False
-    except Exception as e:
-        return False
+def safe(name):
+    """Filesystem-safe upper-case token, matching the other scrapes' convention."""
+    return str(name).upper().replace(" ", "_").replace("/", "_").replace(",", "")
 
-def get_autocomplete_options(driver):
-    """Get options from the currently open autocomplete dropdown."""
-    try:
-        time.sleep(1)  # Reduced from 2
-        menu = WebDriverWait(driver, 8).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, ".v-menu__content.menuable__content__active"))
-        )
-        
-        # The dropdown lazy-renders: only the items currently in view exist in the DOM.
-        # Reading it once silently TRUNCATES long lists - Samar's 26 municipalities came
-        # back as 20, and the missing ones simply never got scraped. Scroll to the bottom,
-        # re-reading until the count stops growing.
-        options = []
-        last_count = -1
 
-        while len(options) != last_count:
-            last_count = len(options)
+# Fetches a batch of URLs from inside the page and hands back the parsed JSON. A failure is
+# null rather than an exception, so one bad path cannot lose the other 24 in its batch.
+_FETCH_BATCH = """
+const paths = arguments[0], done = arguments[arguments.length - 1];
+Promise.all(paths.map(p =>
+  fetch(p, {headers: {'Accept': 'application/json'}})
+    .then(r => r.ok ? r.json() : null)
+    .catch(() => null)
+)).then(done);
+"""
 
-            for item in menu.find_elements(By.CSS_SELECTOR, ".v-list-item"):
-                try:
-                    text = item.text.strip()
-                    if text and text not in options:
-                        options.append(text)
-                except Exception:
-                    pass
 
-            try:
-                driver.execute_script(
-                    "arguments[0].scrollTop = arguments[0].scrollHeight;", menu
-                )
-                time.sleep(0.4)
-            except Exception:
+class Api:
+    """Every request goes through the open browser, because Cloudflare will not accept any
+    other client. Batched, so this is not as slow as it sounds."""
+
+    BATCH = 25
+
+    def __init__(self, driver):
+        self.d = driver
+
+    def get_many(self, paths, retries=3):
+        """Parsed JSON for each path, in order. None where it could not be fetched."""
+        out = [None] * len(paths)
+        pending = list(range(len(paths)))
+
+        for attempt in range(retries):
+            if not pending:
                 break
-        
-        return options
-    except Exception as e:
+            still = []
+            for i in range(0, len(pending), self.BATCH):
+                chunk = pending[i:i + self.BATCH]
+                got = self.d.execute_async_script(
+                    _FETCH_BATCH, [f"/{paths[j]}" for j in chunk])
+                for j, value in zip(chunk, got):
+                    if value is None:
+                        still.append(j)
+                    else:
+                        out[j] = value
+            pending = still
+            if pending:
+                time.sleep(2 * (attempt + 1))   # a 403 here is throttling, so back off
+
+        return out
+
+    def get(self, path):
+        return self.get_many([path])[0]
+
+
+def open_browser():
+    """A real browser, kept open for the whole run. Not headless: the challenge fails one."""
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+
+    print("opening a browser and clearing Cloudflare ...")
+    opts = Options()
+    opts.add_argument("--disable-blink-features=AutomationControlled")
+    driver = webdriver.Chrome(options=opts)
+    driver.set_script_timeout(180)
+    driver.get(f"{BASE}/")
+    for _ in range(40):
+        time.sleep(1)
+        if any(c["name"] == "cf_clearance" for c in driver.get_cookies()):
+            print("  cleared")
+            return driver
+    driver.quit()
+    sys.exit("Cloudflare did not clear - try again")
+
+
+def walk_cities(api):
+    """Every city/municipality in the tree, with its region and province.
+
+    Breadth-first, one batched round trip per level, rather than one request per node:
+    the tree is three levels deep and a node-at-a-time walk is minutes of waiting."""
+    cities = []
+    frontier = [(ROOT_CODE, None, None)]      # (code, region, province)
+
+    while frontier:
+        nodes = api.get_many([f"data/regions/local/{code}.json" for code, _, _ in frontier])
+        nxt = []
+        for (_, region, province), node in zip(frontier, nodes):
+            for child in (node or {}).get("regions", []):
+                cat, name, code = child["categoryCode"], child["name"], child["code"]
+                if cat == REGION:
+                    nxt.append((code, name, None))
+                elif cat == PROVINCE:
+                    nxt.append((code, region, name))
+                elif cat == CITY:
+                    cities.append((region, province, name, code))
+        frontier = nxt
+
+    return cities
+
+
+def coc_rows(region, province, city, coc):
+    """Every contest on this locality's ballot, and every candidate in each."""
+    if not coc:
         return []
 
-def select_autocomplete_option(driver, option_text):
-    """Select an option from the autocomplete dropdown by clicking it."""
-    try:
-        time.sleep(0.3)  # Reduced from 0.5
-        menu = WebDriverWait(driver, 8).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, ".v-menu__content.menuable__content__active"))
-        )
-        
-        items = menu.find_elements(By.CSS_SELECTOR, ".v-list-item")
+    rows = []
+    # "local" holds the locality's own races; "national" holds the senate and party-list
+    # ballot it also canvasses. Both belong in the file, as in every other cycle.
+    for contest in (coc.get("local") or []) + (coc.get("national") or []):
+        options = ((contest.get("candidates") or {}).get("candidates")) or []
 
-        # EXACT match first. A substring match silently picks the wrong place whenever one
-        # name contains another: asking for "SAMAR" matched "EASTERN SAMAR" (listed first),
-        # so the 2025 scrape filed Eastern Samar's 23 municipalities under Samar and the
-        # real Samar province went missing entirely. Same trap for LEYTE/SOUTHERN LEYTE,
-        # COTABATO/SOUTH COTABATO, and city names like SAN JOSE / SAN JOSE DEL MONTE.
-        target = option_text.strip().upper()
+        tallied = []
+        for opt in options:
+            m = _OPTION.match(opt.get("name") or "")
+            name = (m.group(1) if m else opt.get("name") or "").strip()
+            party = (m.group(2) if m and m.group(2) else "").strip()
+            tallied.append((name, party, int(opt.get("votes") or 0), opt.get("percentage")))
 
-        for item in items:
-            if item.text.strip().upper() == target:
-                driver.execute_script("arguments[0].scrollIntoView();", item)
-                time.sleep(0.1)
-                item.click()
-                time.sleep(0.5)
-                return True
+        # COMELEC lists options in BALLOT order and numbers them accordingly. `rank` in this
+        # dataset means rank, so sort by votes - never trust the printed number.
+        tallied.sort(key=lambda t: t[2], reverse=True)
 
-        # Only then fall back to a substring match.
-        for item in items:
-            if target in item.text.strip().upper():
-                driver.execute_script("arguments[0].scrollIntoView();", item)
-                time.sleep(0.1)
-                item.click()
-                time.sleep(0.5)
-                return True
+        for i, (name, party, votes, pct) in enumerate(tallied, 1):
+            rows.append({
+                "region": region, "province": province, "city": city,
+                "position": contest.get("contestName"),
+                "rank": i,
+                "candidate_name": name,
+                "party": party,
+                "votes": votes,
+                "percentage": f"{pct} %" if pct is not None else "",
+            })
+    return rows
 
-        return False
-    except Exception as e:
-        return False
 
-def get_election_results(driver):
-    """Extract election results from the current page - PRESERVE RAW POSITION NAMES."""
-    try:
-        time.sleep(1)  # Reduced from 2
-        
-        results = []
-        
-        # Expand all panels at once with JavaScript
-        driver.execute_script("""
-            document.querySelectorAll('.v-expansion-panel-header').forEach(header => {
-                if (!header.classList.contains('v-expansion-panel-header--active')) {
-                    header.click();
-                }
-            });
-        """)
-        time.sleep(0.5)  # Reduced from 1
-        
-        panels = driver.find_elements(By.CSS_SELECTOR, ".v-expansion-panel")
-        
-        for panel in panels:
-            try:
-                header = panel.find_element(By.CSS_SELECTOR, ".v-expansion-panel-header")
-                position_text = header.text.strip()
-                
-                # Skip category headers
-                if "National Positions" in position_text or "Local Positions" in position_text:
-                    continue
-                
-                content = panel.find_element(By.CSS_SELECTOR, ".v-expansion-panel-content")
-                
-                try:
-                    table = content.find_element(By.CSS_SELECTOR, ".v-data-table")
-                    rows = table.find_elements(By.CSS_SELECTOR, "tbody tr")
-                    
-                    for row in rows:
-                        try:
-                            cells = row.find_elements(By.TAG_NAME, "td")
-                            if len(cells) >= 3:
-                                first_cell = cells[0].text.strip()
-                                votes = cells[1].text.strip().replace(',', '')
-                                percentage = cells[2].text.strip()
-                                
-                                rank = ""
-                                candidate_name = ""
-                                party = ""
-                                
-                                if '. ' in first_cell:
-                                    parts = first_cell.split('. ', 1)
-                                    rank = parts[0]
-                                    rest = parts[1] if len(parts) > 1 else ""
-                                    
-                                    if '(' in rest and ')' in rest:
-                                        candidate_name = rest[:rest.rfind('(')].strip()
-                                        party = rest[rest.rfind('(')+1:rest.rfind(')')].strip()
-                                    else:
-                                        candidate_name = rest
-                                else:
-                                    candidate_name = first_cell
-                                
-                                results.append({
-                                    'position': position_text,  # Keep RAW position name with district info
-                                    'rank': rank,
-                                    'candidate_name': candidate_name,
-                                    'party': party,
-                                    'votes': votes,
-                                    'percentage': percentage
-                                })
-                        except:
-                            continue
-                            
-                except:
-                    continue
-                    
-            except:
-                continue
-        
-        return results
-        
-    except Exception as e:
-        return []
+def fetch_all(api, out_root, cities, chunk=50):
+    """Fetch and write a list of localities, a batch of COCs at a time."""
+    written, empty = 0, []
+    for i in range(0, len(cities), chunk):
+        batch = cities[i:i + chunk]
+        cocs = api.get_many([f"data/coc/{code}.json" for _, _, _, code in batch])
+        for (region, province, city, _), coc in zip(batch, cocs):
+            rows = coc_rows(region, province, city, coc)
+            if rows:
+                write(path_for(out_root, region, province, city), rows)
+                written += 1
+            else:
+                empty.append(f"{city}, {province}")
+        print(f"  {min(i + chunk, len(cities))}/{len(cities)}  "
+              f"written={written} empty={len(empty)}", flush=True)
 
-def save_to_csv(results, region, province, city, base_dir=None):
-    base_dir = Path(base_dir) if base_dir else raw_dir(2025)
-    """Save results to a CSV file with organized folder structure."""
-    try:
-        def clean_name(name):
-            return name.replace('/', '-').replace(' ', '_').replace('\\', '-')
-        
-        region_clean = clean_name(region)
-        province_clean = clean_name(province)
-        city_clean = clean_name(city)
-        
-        region_dir = os.path.join(base_dir, region_clean)
-        province_dir = os.path.join(region_dir, province_clean)
-        os.makedirs(province_dir, exist_ok=True)
-        
-        filename = f"{region_clean}_{province_clean}_{city_clean}.csv"
-        filepath = os.path.join(province_dir, filename)
-        
-        with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
-            fieldnames = ['region', 'province', 'city', 'position', 'rank', 'candidate_name', 'party', 'votes', 'percentage']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            
-            writer.writeheader()
-            for result in results:
-                writer.writerow({
-                    'region': region,
-                    'province': province,
-                    'city': city,
-                    'position': result['position'],
-                    'rank': result['rank'],
-                    'candidate_name': result['candidate_name'],
-                    'party': result['party'],
-                    'votes': result['votes'],
-                    'percentage': result['percentage']
-                })
-        
-        return filepath
-        
-    except Exception as e:
-        return None
+    if empty:
+        print(f"\n  {len(empty)} returned no results:")
+        for e in sorted(empty):
+            print(f"     - {e}")
+    return written, empty
 
-def file_already_exists(region, province, city, base_dir=None):
-    base_dir = Path(base_dir) if base_dir else raw_dir(2025)
-    """Check if a CSV file already exists for this location."""
-    def clean_name(name):
-        return name.replace('/', '-').replace(' ', '_').replace('\\', '-')
-    
-    region_clean = clean_name(region)
-    province_clean = clean_name(province)
-    city_clean = clean_name(city)
-    
-    region_dir = os.path.join(base_dir, region_clean)
-    province_dir = os.path.join(region_dir, province_clean)
-    filename = f"{region_clean}_{province_clean}_{city_clean}.csv"
-    filepath = os.path.join(province_dir, filename)
-    
-    return os.path.exists(filepath)
+
+def path_for(out_root, region, province, city):
+    return (out_root / safe(region) / safe(province) /
+            f"{safe(region)}_{safe(province)}_{safe(city)}.csv")
+
+
+def write(path, rows):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=FIELDS)
+        w.writeheader()
+        w.writerows(rows)
+
+
+# ---------------------------------------------------------------- completeness
+
+def verify(out_root, cities):
+    """The check the old scraper never did.
+
+    A national race is the SAME ballot in every town in the country, so its candidate count
+    must be identical everywhere; anything short is truncation, by definition and without
+    needing to know the right answer in advance. And a town that elects a mayor has one.
+    Returns {(province, city): [reasons]} for the localities that fail."""
+    per_race = collections.defaultdict(dict)
+    has_mayor, on_disk = set(), []
+
+    for region, province, city, code in cities:
+        path = path_for(out_root, region, province, city)
+        if not path.exists():
+            continue
+        on_disk.append((region, province, city, code))
+
+        counts = collections.Counter()
+        with path.open(encoding="utf-8") as fh:
+            for row in csv.DictReader(fh):
+                pos = (row["position"] or "").upper()
+                counts[pos] += 1
+                if pos.startswith("MAYOR"):
+                    has_mayor.add((province, city))
+
+        for race, n in counts.items():
+            if race.startswith(("SENATOR", "PARTY LIST")):
+                per_race[race][(province, city)] = n
+
+    bad = {}
+    for race, by_loc in per_race.items():
+        if not by_loc:
+            continue
+        full = max(by_loc.values())          # the complete ballot, as observed
+        for loc, n in by_loc.items():
+            if n < full:
+                bad.setdefault(loc, []).append(f"{race}: {n} of {full}")
+
+    for _, province, city, _ in on_disk:
+        if (province, city) not in has_mayor:
+            bad.setdefault((province, city), []).append("no MAYOR race")
+
+    return bad, on_disk
+
 
 def main():
-    """Main scraping function."""
-    url = "https://2025electionresults.comelec.gov.ph/coc-result"
-    
-    print("=" * 80)
-    print("COMELEC 2025 FAST Scraper - Saving RAW position names to 2025_raw/")
-    print("=" * 80)
-    print(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-    
-    # Headless triggers COMELEC's bot detection; config.yaml -> scraping.headless
-    driver = setup_driver(headless=CONFIG['scraping']['headless'])
-    
-    total_scraped = 0
-    total_skipped = 0
-    total_failed = 0
-    
+    ap = argparse.ArgumentParser(description="Scrape COMELEC 2025 into data/raw_data/2025/")
+    ap.add_argument("--province", action="append", default=[])
+    ap.add_argument("--force", action="store_true", help="re-fetch localities already on disk")
+    ap.add_argument("--verify-only", action="store_true", help="check the files; fetch nothing")
+    ap.add_argument("--no-verify", action="store_true", help="skip the completeness check")
+    args = ap.parse_args()
+
+    out_root = raw_dir(2025)
+    only = {p.upper() for p in args.province}
+
+    driver = open_browser()
     try:
-        driver.get(url)
-        wait_for_page_load(driver, initial_load=True)
-        print("✓ Page loaded\n")
-        
-        # Get all regions
-        if not click_autocomplete_field(driver, "Region:"):
-            print("✗ Failed to open region dropdown")
+        api = Api(driver)
+
+        print("walking the region tree ...")
+        cities = walk_cities(api)
+        print(f"{len(cities):,} cities/municipalities")
+        if only:
+            cities = [c for c in cities if (c[1] or "").upper() in only]
+            print(f"--province filter: {len(cities)}")
+        if not cities:
+            sys.exit("the region tree came back empty - nothing to do")
+
+        if not args.verify_only:
+            todo = [c for c in cities
+                    if args.force or not path_for(out_root, *c[:3]).exists()]
+            print(f"{len(todo):,} to fetch\n")
+            fetch_all(api, out_root, todo)
+
+        if args.no_verify:
             return
-        
-        regions = get_autocomplete_options(driver)
-        if ONLY_REGIONS:
-            regions = [r for r in regions if r.upper() in ONLY_REGIONS]
-            print(f"--region filter: {regions}")
-        print(f"✓ Found {len(regions)} regions\n")
-        
-        driver.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
-        time.sleep(0.5)
-        
-        for region_idx, region in enumerate(regions, 1):
-            print(f"\n[{region_idx}/{len(regions)}] {region}")
-            print("-" * 80)
-            
-            driver.refresh()
-            wait_for_page_load(driver, initial_load=True)
-            
-            try:
-                if not click_autocomplete_field(driver, "Region:") or not select_autocomplete_option(driver, region):
-                    print(f"  ✗ Failed to select region")
-                    continue
-                
-                wait_for_page_load(driver)
-                
-                if not click_autocomplete_field(driver, "Province/District:"):
-                    print(f"  ✗ Failed to open province dropdown")
-                    continue
-                
-                provinces = get_autocomplete_options(driver)
-                if ONLY_PROVINCES:
-                    provinces = [p for p in provinces if p.upper() in ONLY_PROVINCES]
-                    print(f"  --province filter: {provinces}")
-                print(f"  → {len(provinces)} provinces")
-                
-                driver.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
-                time.sleep(0.5)
-            except Exception as e:
-                print(f"  ✗ Error: {e}")
-                continue
-            
-            for province_idx, province in enumerate(provinces, 1):
-                try:
-                    if not click_autocomplete_field(driver, "Province/District:") or not select_autocomplete_option(driver, province):
-                        continue
-                    
-                    wait_for_page_load(driver)
-                    
-                    if not click_autocomplete_field(driver, "City/Municipality:"):
-                        continue
-                    
-                    cities = get_autocomplete_options(driver)
-                    
-                    driver.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
-                    time.sleep(0.5)
-                except Exception as e:
-                    continue
-                
-                for city_idx, city in enumerate(cities, 1):
-                    if file_already_exists(region, province, city):
-                        print(f"  [{province_idx}/{len(provinces)}] {province} - {city_idx}/{len(cities)} ⊙", end="\r")
-                        total_skipped += 1
-                        continue
-                    
-                    try:
-                        if not click_autocomplete_field(driver, "City/Municipality:") or not select_autocomplete_option(driver, city):
-                            total_failed += 1
-                            continue
-                        
-                        wait_for_page_load(driver)
-                        
-                        results = get_election_results(driver)
-                        
-                        if results:
-                            save_to_csv(results, region, province, city)
-                            print(f"  [{province_idx}/{len(provinces)}] {province} - {city_idx}/{len(cities)} ✓ {city}")
-                            total_scraped += 1
-                        else:
-                            total_failed += 1
-                    except Exception as e:
-                        total_failed += 1
-                        continue
-        
-        print("\n" + "=" * 80)
-        print("COMPLETE")
-        print("=" * 80)
-        print(f"Scraped: {total_scraped} | Skipped: {total_skipped} | Failed: {total_failed}")
-        print(f"End: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print("=" * 80)
-        
-    except KeyboardInterrupt:
-        print(f"\n\n✗ Interrupted - Scraped: {total_scraped}, Skipped: {total_skipped}")
-    except Exception as e:
-        print(f"\n✗ Error: {e}")
+
+        print("\nverifying completeness ...")
+        bad, on_disk = verify(out_root, cities)
+        print(f"  checked {len(on_disk):,} localities on disk")
+        if not bad:
+            print("  every locality has the full national ballot and a mayor.")
+            return
+
+        print(f"  {len(bad)} INCOMPLETE:")
+        for (province, city), why in sorted(bad.items()):
+            print(f"     {province:<24} {city:<24} {'; '.join(why)}")
+
+        retry = [c for c in cities if (c[1], c[2]) in bad]
+        print(f"\n  re-fetching {len(retry)} ...")
+        fetch_all(api, out_root, retry)
+
+        bad, _ = verify(out_root, cities)
+        if bad:
+            # Report it, loudly, rather than paper over it. A gap you report is a completely
+            # different object from a gap you never noticed.
+            print(f"\n  STILL INCOMPLETE after a re-fetch ({len(bad)}). The gap is in "
+                  f"COMELEC's data, not the scraper's:")
+            for (province, city), why in sorted(bad.items()):
+                print(f"     {province:<24} {city:<24} {'; '.join(why)}")
+            sys.exit(1)
+        print("  all recovered on the retry.")
     finally:
         driver.quit()
 
+
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(
-        description="Scrape 2025 COMELEC results into data/raw_data/2025/. "
-                    "--region/--province re-scrape one place, e.g. Samar, which the full "
-                    "run captured as a duplicate of Eastern Samar: "
-                    "--region 'REGION VIII' --province SAMAR")
-    ap.add_argument("--region", action="append", default=[])
-    ap.add_argument("--province", action="append", default=[])
-    ap.add_argument("--headed", action="store_true",
-                    help="run with a visible browser (COMELEC blocks headless)")
-    args = ap.parse_args()
-
-    ONLY_REGIONS = {r.upper() for r in args.region}
-    ONLY_PROVINCES = {p.upper() for p in args.province}
-    if args.headed:
-        CONFIG['scraping']['headless'] = False
-
     main()
