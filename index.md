@@ -18,7 +18,9 @@ They are one bundle because they are not independent: the 2019, 2022 and 2025 wi
 **derived from the vote counts**. The 2004–2013 winners are inherited from an earlier
 source and cannot be verified against ballots.
 
-[Get the data on GitHub](https://github.com/RobertRLeung/OpenHalalan) — CSV, ready to analyse.
+[Get the data on GitHub](https://github.com/RobertRLeung/OpenHalalan) — CSV, ready to
+analyse — or [download the archived release](https://doi.org/10.5281/zenodo.17783099).
+Explore it, and the map, at [openhalalan](https://robertrleung.github.io/OpenHalalan/).
 
 ## Reproducible, and honest about its gaps
 
@@ -31,10 +33,22 @@ python run_all.py
 
 A completeness audit ships with the data and writes every known gap to
 `data/audit/issues.csv`. Building it surfaced real defects that had been sitting in the
-published data — winners selected alphabetically rather than by votes in 2022, the City of
-Manila missing entirely from that cycle, Samar's 2025 results duplicated from Eastern
-Samar, and 2019 governors filed under the wrong province. All are fixed and documented; the
-gaps we *cannot* fix are written down rather than hidden.
+published data, and the largest of them was invisible to a coverage check:
+
+- **2022 was silently truncated.** The scraper read a rendered results table, so every long
+  candidate list lost its tail. The presidential race carried 7 of its 10 candidates,
+  omitting Leni Robredo, who finished second; the entire party-list race was missing; and
+  because the same truncation hit long councilor lists, 57 councilor winners were wrong.
+  Every one of the 1,634 files existed, each merely missing the same people. 2022 is now
+  re-scraped from COMELEC's JSON API, which returns every ballot option.
+- **The City of Manila was missing from 2022 altogether.** COMELEC models Manila as a
+  province whose children are its districts, none of which is a canvass unit.
+- 2019 governors were filed under the wrong province; Samar's 2025 results were duplicated
+  from Eastern Samar.
+
+All are fixed and documented. The gaps we *cannot* fix — there are no vote counts before
+2016, and overseas votes are absent from every cycle but 2022 — are written down rather
+than hidden.
 
 Read the data dictionaries before using either dataset — the known gaps matter:
 [winners](https://github.com/RobertRLeung/OpenHalalan/blob/main/data/output/DATA_DICTIONARY_WINNERS.md) ·
@@ -42,9 +56,16 @@ Read the data dictionaries before using either dataset — the known gaps matter
 
 ## How to cite
 
+Cite the **concept DOI**. It always resolves to the newest version, so a citation cannot go
+stale — which matters here, because the previously cited record turned out to contain the
+broken 2022 data for months.
+
 > Leung, R., Alejandro, A., Acuna, R., Buot, J., Go, C., & Nable, J. (2026).
-> *OpenHalalan: The Philippine National and Local Election Dataset* (Version 2.0)
-> [Data set]. Zenodo. https://doi.org/10.5281/zenodo.21331500
+> *OpenHalalan: The Philippine National and Local Election Dataset*
+> [Data set]. Zenodo. https://doi.org/10.5281/zenodo.17783099
+
+If you need a fixed snapshot for exact reproducibility, take the version-specific DOI from
+the record page and say which version you used.
 
 If you are citing the analysis rather than the data:
 
@@ -58,5 +79,5 @@ If you are citing the analysis rather than the data:
 ## Feedback
 
 Spotted an error? [Open an issue](https://github.com/RobertRLeung/OpenHalalan/issues) or
-send a pull request. Corrections are welcome — this session's biggest fixes came from
+send a pull request. Corrections are welcome — the biggest fixes in this dataset came from
 exactly that kind of scrutiny.
