@@ -107,20 +107,42 @@
   ::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
 
   /* ---- map ----
-     The eight categorical slots are the validated dark-surface set, assigned in this
-     fixed order and never cycled: a ninth winner folds into "Other" rather than
-     inventing a hue. The sequential ramp is one hue, dark (few votes, receding into
-     the surface) to light (many). */
+     Eight categorical slots, assigned in this fixed order and never cycled: a ninth
+     winner folds into "Other" rather than inventing a hue. They are pastels, held at
+     roughly one lightness so no party looks louder than another just from its hue -
+     the earlier saturated set read as a warning light. Ordered to keep neighbouring
+     slots far apart in hue, since adjacent slots are the ones most often confused.
+     The sequential ramp is one hue, dark (few votes, receding into the paper) to
+     light (many). */
   .viz{
-    --s1:#3987e5; --s2:#199e70; --s3:#c98500; --s4:#008300;
-    --s5:#9085e9; --s6:#e66767; --s7:#d55181; --s8:#d95926;
-    --s-other:#57575a;
-    --no-data:#2f2f2f;
+    --s1:#8FBCE6;   /* blue     */
+    --s2:#E8C98A;   /* sand     */
+    --s3:#8FD2BC;   /* teal     */
+    --s4:#EDA1A1;   /* coral    */
+    --s5:#BCAEE8;   /* lavender */
+    --s6:#A9D49A;   /* green    */
+    --s7:#E9A9C9;   /* pink     */
+    --s8:#F0BC91;   /* apricot  */
+    --s-other:#8A8A90;
+    --no-data:#33333A;
   }
-  .lgu{stroke:var(--paper-dim); stroke-width:0.3; vector-effect:non-scaling-stroke; cursor:pointer;}
-  .lgu:hover{stroke:var(--ink); stroke-width:1.4;}
+  /* Borders are white and hairline-thin at every zoom (non-scaling-stroke), so 1,642
+     municipalities read as a mesh rather than a smear. Hovering swaps the outline to
+     the site's red and thickens it - the same red as the logo and the buttons. */
+  /* Stroke width is a custom property the zoom handler rewrites, NOT an inline style -
+     an inline style would beat the :hover rule and the hovered outline would never
+     thicken. It scales with zoom because one weight cannot serve both views: at
+     1,642-municipalities-on-one-screen anything heavier than a hair is a white smear,
+     and zoomed into a province anything lighter is invisible. */
+  .lgu{
+    fill-opacity:0.92;
+    stroke:rgba(255,255,255,0.8); stroke-width:var(--lgu-stroke, 0.35);
+    vector-effect:non-scaling-stroke; cursor:pointer;
+  }
+  .lgu:hover{ stroke:var(--stamp); stroke-width:2.4; fill-opacity:1; }
   .lgu.dim{opacity:0.12;}
-  .prov-line{fill:none; stroke:rgba(240,240,240,0.45); stroke-width:0.7;
+  .prov-line{fill:none; stroke:rgba(255,255,255,0.9);
+             stroke-width:var(--prov-stroke, 0.9);
              vector-effect:non-scaling-stroke; pointer-events:none;}
   .mode-btn{color:var(--ink-soft); background:transparent; transition:background .15s ease, color .15s ease;}
   .mode-btn[aria-pressed="true"]{background:var(--stamp); color:var(--ink);}
@@ -520,8 +542,8 @@ const MAP = {
 const SLOTS = ["--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8"];
 // One hue, dark to light: on a dark page the low end should recede into the
 // paper, not glow. Reversed from the light-mode convention on purpose.
-const RAMP = ["#0d366b","#184f95","#256abf","#2a78d6","#3987e5","#5598e7",
-              "#86b6ef","#b7d3f6","#cde2fb"];
+const RAMP = ["#20375C","#2C5183","#3A6DA8","#5A8FC6","#84B0D9","#A9C8E6",
+              "#C6DBEF","#DCE9F7","#EEF4FB"];
 
 // A local race has a different winner in every town, so colouring by candidate
 // would need 1,600 hues. Colour those by the winner's PARTY instead; national
@@ -542,6 +564,13 @@ const elLegend = document.getElementById("map-legend");
 const elDetail = document.getElementById("map-detail");
 
 let path, projection, lguFeatures, provFeatures, zoom;
+
+/** Borders get heavier as you go in. Capped, or a zoomed province turns into outline. */
+function strokesFor(k){
+  const root = document.getElementById("map");
+  root.style.setProperty("--lgu-stroke",  Math.min(1.1, 0.3 + 0.13 * (k - 1)) + "px");
+  root.style.setProperty("--prov-stroke", Math.min(2.2, 0.9 + 0.18 * (k - 1)) + "px");
+}
 
 const fmt = n => n.toLocaleString();
 const pct = (a, b) => b > 0 ? (100 * a / b).toFixed(1) + "%" : "—";
@@ -671,9 +700,10 @@ function initMap(){
   zoom = d3.zoom().scaleExtent([1, 60])
     .on("zoom", e => {
       gMap.attr("transform", e.transform);
-      gMap.selectAll("path").style("stroke-width", null);
+      strokesFor(e.transform.k);
     });
   svg.call(zoom);
+  strokesFor(1);
 
   const years = [...new Set(MAP.data.races.map(r => r[0]))].sort((a, b) => b - a);
   elYear.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join("");
@@ -884,6 +914,9 @@ function drawTurnout(sel, active, pos){
 
 // ---------- interaction ----------
 function onHover(event, d){
+  // SVG has no z-index - a later sibling paints over this one's outline - so the
+  // hovered shape is moved to the end of its group to keep its border unbroken.
+  if(this.nextSibling) this.parentNode.appendChild(this);
   const cell = MAP.byUnit.get(d.properties.id);
   const parent = unit() === "prov"
     ? (MAP.geo.regions[d.properties.r] || "")
