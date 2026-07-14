@@ -77,6 +77,10 @@
   .hairline{border-color:var(--line);}
   .pct-tab{font-family:'IBM Plex Mono', monospace; letter-spacing:0.05em;}
   .tally-mark{stroke:var(--ink); stroke-width:3; fill:none; stroke-linecap:round;}
+  /* The fifth stroke is red, as it is in the logo. It has to be a CLASS: a stroke="..."
+     attribute on the line loses to .tally-mark's stroke, because CSS beats presentation
+     attributes, and the diagonal came out white. */
+  .tally-mark.tally-fifth{stroke:var(--stamp);}
   .badge-dot{width:7px;height:7px;border-radius:50%;background:var(--stamp);display:inline-block;animation:pulse 2s infinite;}
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.35;}}
   ::selection{background:var(--violet); color:var(--ink);}
@@ -424,10 +428,10 @@
     <h2 class="font-display font-semibold text-3xl md:text-4xl mb-10">Known issues.</h2>
     <div class="card p-6">
       <ul class="text-lg text-[var(--ink-soft)] leading-relaxed list-disc pl-5 space-y-3">
-        <li>No vote counts from 2013 back. 2013 has no recoverable municipality-level source at all; 2010 exists only as winners-only PDFs covering 83% of towns.</li>
-        <li><strong style="color:var(--ink);">Overseas absentee votes are not in the dataset.</strong> Every total is a sum of the localities inside the Philippines, so nationwide races run slightly under COMELEC's official canvass — Duterte's 2016 presidential total comes to 15.85M here against an official 16.60M. Local races are unaffected.</li>
-        <li>2022's national races are withheld pending a re-scrape. The original 2022 scrape was truncated: it captured 7 of the 10 presidential candidates and none of the party-list race — Leni Robredo, who finished second with roughly 15M votes, is missing from it entirely.</li>
-        <li>Boundaries are the PSA's 2023 PSGC vintage, joined to the ballots on PSGC code rather than on name — so Cebu City, Cotabato City and the rest of the 16 province-independent cities land where they belong. One imprecision remains: the eight BARMM Special Geographic Area municipalities, created in 2024, are drawn from their 2020 interim-cluster boundaries, and three barangays (Dunguan, Macabual, Panicupan) moved between municipalities afterwards. Their votes are correct — the join is per municipality — but the drawn edge of four of those eight is one barangay out.</li>
+        <li><strong style="color:var(--ink);">No vote counts before 2016.</strong> 2013 has no recoverable municipality-level source, and 2010 survives only as winners-only PDFs covering 83% of towns.</li>
+        <li><strong style="color:var(--ink);">Overseas votes are not counted.</strong> Every total sums only the localities inside the Philippines, so nationwide races run a little under COMELEC's official canvass. Local races are unaffected.</li>
+        <li><strong style="color:var(--ink);">2022's national races are withheld pending a re-scrape.</strong> The original scrape caught only 7 of the 10 presidential candidates and none of the party-list race, leaving out Leni Robredo, who finished second.</li>
+        <li><strong style="color:var(--ink);">Four map outlines are slightly off.</strong> The eight BARMM Special Geographic Area municipalities are drawn from their 2020 interim boundaries, so four of them are one barangay out. Their vote totals are unaffected.</li>
       </ul>
     </div>
     <p class="mt-4 font-mono text-base text-[var(--ink-soft)]">Spot something else? See the <a href="https://github.com/RobertRLeung/OpenHalalan" class="underline">audit log</a> or <a href="#questions" class="underline">let us know</a>.</p>
@@ -983,12 +987,13 @@ const STROKE_PITCH = 4;   // gap between two vertical marks, as in the logo
 const GROUP_PITCH  = 22;  // gap between the first mark of one group of five and the next
 const MARK_TOP = 4, MARK_BOTTOM = 16;
 
-function tallyMark(x1, y1, x2, y2, stroke){
+function tallyMark(x1, y1, x2, y2, fifth){
   const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
   l.setAttribute("x1", x1); l.setAttribute("y1", y1);
   l.setAttribute("x2", x2); l.setAttribute("y2", y2);
-  l.setAttribute("class", "tally-mark");     // stroke-width:3, round caps - as the logo
-  if(stroke) l.setAttribute("stroke", stroke);
+  // stroke-width:3 and round caps come from the class, as in the logo. The colour has to
+  // come from a class too - a stroke attribute would lose to it.
+  l.setAttribute("class", "tally-mark" + (fifth ? " tally-fifth" : ""));
   return l;
 }
 
@@ -1006,8 +1011,9 @@ function drawTally(svg, count){
   for(let g = 0; g < groups; g++){
     const x0 = 4 + g * GROUP_PITCH;
     verticals(svg, x0, 4);
-    // The diagonal overhangs the four uprights by 2 on each side, as it does in the logo.
-    svg.appendChild(tallyMark(x0 - 2, 15, x0 + 14, 5, "var(--stamp)"));
+    // The fifth stroke, laid across the four. It overhangs them by 2 on each side and is
+    // red, exactly as in the logo.
+    svg.appendChild(tallyMark(x0 - 2, 15, x0 + 14, 5, true));
   }
   verticals(svg, 4 + groups * GROUP_PITCH, remainder);
 }
