@@ -65,6 +65,11 @@ OFFICE_PATTERNS = [
     ("PROVINCIAL BOARD MEMBER", "PROVINCIAL BOARD MEMBER"),
     ("MEMBER, SANGGUNIANG PANLUNGSOD", "COUNCILOR"),  # city council
     ("MEMBER, SANGGUNIANG BAYAN", "COUNCILOR"),  # municipal council
+    # COMELEC's own typo, one G short, and it appears in exactly one contest in the whole
+    # archive: Bangued, Abra, 2022 (17 rows). Spelled out rather than handled by a looser
+    # pattern, because a looser pattern is how a real unknown office gets silently
+    # swallowed - which is the thing this table exists to prevent.
+    ("MEMBER, SANGUNIANG BAYAN", "COUNCILOR"),
     ("COUNCILOR", "COUNCILOR"),
     ("PROVINCIAL VICE-GOVERNOR", "VICE GOVERNOR"),
     ("PROVINCIAL VICE GOVERNOR", "VICE GOVERNOR"),
@@ -191,13 +196,22 @@ def main():
     df["province"] = [resolve_province(p, c) for p, c in zip(df["province"], df["city"])]
     df["city"] = df["city"].map(canonical_city)
 
-    # LAV (Local Absentee Voting) is a real nationwide tally, not a place. Mark it so it
-    # can be included in national totals and excluded from geographic aggregation.
-    df["is_geographic"] = ~df["province"].isin(NON_GEOGRAPHIC)
+    # LAV (Local Absentee Voting) and OAV (Overseas Absentee Voting) are real nationwide
+    # tallies, not places. Mark them so they can be included in national totals and excluded
+    # from geographic aggregation.
+    #
+    # This has to test the REGION as well as the province. LAV files say LAV/LAV/LAV, so the
+    # province alone catches them - but an OAV file says region=OAV, province=EUROPE,
+    # city=ITALY. Testing the province alone would let all 63 overseas posts through as
+    # genuine Philippine localities, folding overseas votes into national totals and
+    # breaking the 1,634-locality invariant, silently, in exactly one cycle.
+    df["is_geographic"] = ~(df["province"].isin(NON_GEOGRAPHIC)
+                            | df["region"].isin(NON_GEOGRAPHIC))
     non_geo = (~df["is_geographic"]).sum()
     if non_geo:
-        print(f"  flagged {non_geo:,} rows as non-geographic tallies "
-              f"({', '.join(sorted(NON_GEOGRAPHIC & set(df['province'].dropna())))})")
+        found = sorted(NON_GEOGRAPHIC & (set(df["province"].dropna())
+                                         | set(df["region"].dropna())))
+        print(f"  flagged {non_geo:,} rows as non-geographic tallies ({', '.join(found)})")
 
     df["is_national_race"] = df["position"].isin(NATIONAL_OFFICES)
 

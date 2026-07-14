@@ -42,6 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import pandas as pd
 
 from config import VOTE_COUNTS_CSV
+from data.compiling.normalize import NON_GEOGRAPHIC
 
 HERE = Path(__file__).resolve().parent
 GEO = HERE / "map_geo.json"
@@ -54,11 +55,10 @@ REPORT = HERE / "map_data_report.txt"
 RACES = ["PRESIDENT", "VICE PRESIDENT", "SENATOR", "PARTY LIST",
          "GOVERNOR", "MAYOR"]
 
-# 2022's national races are held back for the same reason they are held back from the
-# Explore table: the scrape captured 7 of 10 presidential candidates and no party list at
-# all. Robredo, who came second with ~15M votes, is simply not in it.
-WITHHELD = {(2022, "PRESIDENT"), (2022, "VICE PRESIDENT"),
-            (2022, "SENATOR"), (2022, "PARTY LIST")}
+# Nothing is held back any more. 2022's national races were, until its re-scrape landed:
+# the old scrape had 7 of 10 presidential candidates and no party list at all. It is now
+# derived from COMELEC's JSON API, which returns every ballot option.
+WITHHELD = set()
 
 TOP_N = 6          # candidates kept per locality per race; the rest fold into "others"
 
@@ -200,7 +200,10 @@ def main():
     df = pd.read_csv(VOTE_COUNTS_CSV, low_memory=False,
                      usecols=["year", "region", "province", "city", "position",
                               "candidate_name", "party", "votes"])
-    df = df[df.region != "LAV"]              # local absentee voters: a bloc, not a place
+    # LAV is Local Absentee Voting and OAV is Overseas Absentee Voting: both are real
+    # nationwide tallies and both are in the dataset, flagged is_geographic=False. Neither
+    # is a place, so neither can go on a map.
+    df = df[~df.region.isin(NON_GEOGRAPHIC)]
     df = df[df.position.isin(RACES)]
     df = df[~df.set_index(["year", "position"]).index.isin(WITHHELD)]
     df["votes"] = pd.to_numeric(df["votes"], errors="coerce").fillna(0).astype(int)

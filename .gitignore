@@ -28,3 +28,4 @@ data/output/NLE_Vote_Counts_*.csv
 data/site/*.json
 data/site/*_report.txt
 data/site/.geo_cache/
+data/site/map_geo_prov/

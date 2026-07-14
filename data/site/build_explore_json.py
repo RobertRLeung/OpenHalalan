@@ -22,12 +22,6 @@ What goes in
 
 What is deliberately held back
 ------------------------------
-  2022's national races. The 2022 COMELEC scrape was truncated: it captured 7 of the 10
-  presidential candidates and none of the party-list race. Robredo, who finished second
-  with ~15M votes, is missing from it. A re-scrape against COMELEC's JSON API is in
-  progress; until it lands, publishing 2022 national results would be publishing figures
-  we already know are wrong.
-
   PARTY LIST. The "candidates" are organisations, not people, and they do not belong in a
   table of winning candidates.
 """
@@ -44,8 +38,10 @@ from config import PROCESSED, VOTE_COUNTS_CSV, WINNERS_CSV
 
 OUT = Path(__file__).resolve().parent / "explore.json"
 
-# Cycles whose national races are trustworthy. 2022 is excluded: see the module docstring.
-NATIONAL_YEARS = [2016, 2019, 2025]
+# Cycles whose national races are trustworthy. 2022 was excluded until its re-scrape landed;
+# it is now derived from COMELEC's JSON API, which returns every ballot option, and its
+# presidential race has all ten candidates.
+NATIONAL_YEARS = [2016, 2019, 2022, 2025]
 NATIONAL_OFFICES = {"PRESIDENT": 1, "VICE PRESIDENT": 1, "SENATOR": 12}
 
 
@@ -108,7 +104,7 @@ def main():
     local = local_winners()
     national = national_winners()
     print(f"local winners   : {len(local):,}")
-    print(f"national winners: {len(national):,} (cycles {NATIONAL_YEARS}; 2022 held back)")
+    print(f"national winners: {len(national):,} (cycles {NATIONAL_YEARS})")
 
     df = pd.concat([national, local], ignore_index=True)
 

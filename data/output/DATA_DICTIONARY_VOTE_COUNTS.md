@@ -1,8 +1,8 @@
 # Data Dictionary — `NLE_Vote_Counts_2016-2025.csv.gz`
 
 Every candidate's votes, **winners and losers alike**, per city and municipality.
-**1,019,758 rows, 14 columns.** Gzipped (7.8 MB; 82 MB uncompressed — above
-GitHub's 50 MB file limit, hence the compression). `pandas.read_csv` opens it directly.
+**1,681,279 rows, 20 columns.** Gzipped (39 MB uncompressed is well above GitHub's 50 MB
+file limit, hence the compression). `pandas.read_csv` opens it directly.
 
 Built from the per-municipality scrapes in `data/raw_data/`, which remain in the repo as
 the raw record. Rebuild with `python run_all.py`.
@@ -19,7 +19,7 @@ the raw record. Rebuild with `python run_all.py`.
 |---|---|---|---|
 | 9 May 2016 | 361,947 | 1,633 | GMA Eleksyon |
 | 13 May 2019 | 389,092 | 1,634 | ABS-CBN Halalan |
-| 9 May 2022 | 205,240 | 1,634 | COMELEC |
+| 9 May 2022 | 504,814 | 1,634 | COMELEC |
 | 12 May 2025 | 425,426 | 1,638 | COMELEC |
 
 All three land on **1,634 Philippine cities and municipalities** (2025 adds the new BARMM
@@ -42,7 +42,13 @@ spelling. 1,633 of the country's 1,634 localities are present.
 2025 has roughly double the rows on the same number of localities because more candidates
 contested the nationwide races.
 
-**Geographic.** 1,407 distinct localities — every city and municipality COMELEC published.
+**Geographic.** Every city and municipality COMELEC published: 1,634 in each of 2019 and
+2022, 1,633 in 2016 (Maconacon has no file), 1,637 in 2025 (the new BARMM Special
+Geographic Area municipalities).
+
+**2022 also carries overseas votes** (`region = OAV`), which no other cycle does. They are
+flagged `is_geographic = False`, exactly like `LAV`, and are excluded from any per-locality
+aggregation. Do not add them to a national total unless you mean to.
 
 **Offices.** Sixteen. Unlike the winners dataset, this **includes the nationwide races**
 (`PRESIDENT`, `VICE PRESIDENT`, `SENATOR`, `PARTY LIST`), each repeated in every
@@ -142,11 +148,29 @@ There are therefore no cross-source disagreements to reconcile and no source-pre
 
 ## Corrections applied
 
-Three scraper defects were found and fixed; the affected areas were re-scraped.
+Scraper defects found and fixed; the affected areas were re-scraped.
 
-1. **The City of Manila was missing from 2022.** COMELEC presents Manila as a district with
-   no city dropdown (it *is* the NCR 1st district) and the scraper treated that as a
-   failure. Re-scraped.
+1. **2022 was silently truncated, and it was the worst defect in the project's history.**
+   The old scraper drove a browser and read the rendered results table, so it captured only
+   the rows the page had bothered to render. Every long candidate list lost its tail. The
+   presidential race shipped with 7 of its 10 candidates — the first seven alphabetically,
+   dropping MONTEMAYOR, PACQUIAO and **ROBREDO, who finished second with ~15M votes** — and
+   the entire party-list race was absent. This was invisible to a coverage audit: all 1,634
+   files existed, each simply missing the same people.
+
+   It was not only a national problem. The same truncation hit long **councilor** lists, so
+   57 councilor winners in the published dataset were flat wrong. 2022 has been re-scraped
+   from COMELEC's JSON API, which returns every ballot option and cannot truncate. Rows went
+   from 205,240 to 504,814.
+
+2. **The City of Manila was missing from 2022.** COMELEC's API models Manila as a PROVINCE
+   (`NCR - MANILA`) whose fourteen children (Tondo, Binondo, Ermita...) are its districts.
+   None of the fourteen is a canvass unit; Manila's single board hangs off the province node
+   itself. A walk that reads boards only off city nodes therefore returns fourteen empty
+   districts and no Manila. Fixed by treating a province as a locality when it has a board
+   and none of its children do — a rule that deliberately does NOT catch `TAGUIG - PATEROS`,
+   which also has a province-level board but whose two cities have their own, and which
+   would otherwise have been counted twice.
 2. **Samar's 2025 data was Eastern Samar's, duplicated.** Dropdown options were matched by
    substring, so `SAMAR` selected `EASTERN SAMAR` (listed first) — the real Samar province
    was absent and Eastern Samar appeared twice. Matching is now exact-first; all 26 Samar
