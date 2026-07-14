@@ -45,6 +45,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
   :root{
@@ -103,6 +105,27 @@
   table.datatable th:hover{color:var(--hover);}
   ::-webkit-scrollbar{height:8px; width:8px;}
   ::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
+
+  /* ---- map ----
+     The eight categorical slots are the validated dark-surface set, assigned in this
+     fixed order and never cycled: a ninth winner folds into "Other" rather than
+     inventing a hue. The sequential ramp is one hue, dark (few votes, receding into
+     the surface) to light (many). */
+  .viz{
+    --s1:#3987e5; --s2:#199e70; --s3:#c98500; --s4:#008300;
+    --s5:#9085e9; --s6:#e66767; --s7:#d55181; --s8:#d95926;
+    --s-other:#57575a;
+    --no-data:#2f2f2f;
+  }
+  .lgu{stroke:var(--paper-dim); stroke-width:0.3; vector-effect:non-scaling-stroke; cursor:pointer;}
+  .lgu:hover{stroke:var(--ink); stroke-width:1.4;}
+  .lgu.dim{opacity:0.18;}
+  .prov-line{fill:none; stroke:rgba(240,240,240,0.45); stroke-width:0.7;
+             vector-effect:non-scaling-stroke; pointer-events:none;}
+  .mode-btn{color:var(--ink-soft); background:transparent; transition:background .15s ease, color .15s ease;}
+  .mode-btn[aria-pressed="true"]{background:var(--stamp); color:var(--ink);}
+  .swatch{width:12px; height:12px; border-radius:2px; flex:none; display:inline-block;}
+  .tally-bar{height:6px; border-radius:3px;}
   @media (prefers-reduced-motion: reduce){
     *{animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; scroll-behavior:auto !important;}
   }
@@ -115,18 +138,21 @@
   <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
     <a href="#top" class="flex items-center gap-2.5 font-display font-semibold text-lg tracking-tight">
       <span class="inline-flex items-center justify-center rounded-sm" style="background:#000; width:34px; height:34px;">
+        <!-- Ink spans x=2.5..17.5 and y=2.5..17.5, so the mark is centred in the 20x20 box.
+             The tally board reuses this exact geometry: 3-wide strokes on a 4 pitch. -->
         <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
-          <line x1="3" y1="16" x2="3" y2="4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
-          <line x1="7" y1="16" x2="7" y2="4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
-          <line x1="11" y1="16" x2="11" y2="4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
-          <line x1="15" y1="16" x2="15" y2="4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
-          <line x1="1" y1="15" x2="17" y2="5" stroke="var(--gold)" stroke-width="3" stroke-linecap="round"/>
+          <line x1="4" y1="16" x2="4" y2="4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+          <line x1="8" y1="16" x2="8" y2="4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+          <line x1="12" y1="16" x2="12" y2="4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+          <line x1="16" y1="16" x2="16" y2="4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+          <line x1="2" y1="15" x2="18" y2="5" stroke="var(--gold)" stroke-width="3" stroke-linecap="round"/>
         </svg>
       </span>
       <span style="color:var(--gold)">Open Halalan</span>
     </a>
     <nav class="hidden md:flex items-center gap-8 text-sm font-mono uppercase tracking-wide text-[var(--ink-soft)]">
       <a href="#about" class="hover:text-[var(--hover)]">About</a>
+      <a href="#map" class="hover:text-[var(--hover)]">Map</a>
       <a href="#explore" class="hover:text-[var(--hover)]">Explore</a>
       <a href="#papers" class="hover:text-[var(--hover)]">Research</a>
       <a href="#issues" class="hover:text-[var(--hover)]">Data quality</a>
@@ -166,21 +192,21 @@
             <span class="text-sm">Winners dataset — cycles, 2004–2025</span>
             <span class="font-mono text-2xl font-medium tally-value">0</span>
           </div>
-          <svg class="w-full h-6 tally-svg" viewBox="0 0 240 24"></svg>
+          <svg class="tally-svg" width="90" height="20" viewBox="0 0 90 20"></svg>
         </div>
         <div class="tally-row" data-target="4" data-suffix="" data-label="Vote counts dataset — cycles, 2016–2025">
           <div class="flex justify-between items-baseline mb-1">
             <span class="text-sm">Vote counts dataset — cycles, 2016–2025</span>
             <span class="font-mono text-2xl font-medium tally-value">0</span>
           </div>
-          <svg class="w-full h-6 tally-svg" viewBox="0 0 240 24"></svg>
+          <svg class="tally-svg" width="90" height="20" viewBox="0 0 90 20"></svg>
         </div>
         <div class="tally-row" data-target="4198178718" data-suffix="B" data-label="Votes counted, all cycles">
           <div class="flex justify-between items-baseline mb-1">
             <span class="text-sm">Votes counted, all cycles</span>
             <span class="font-mono text-2xl font-medium tally-value">0</span>
           </div>
-          <svg class="w-full h-6 tally-svg" viewBox="0 0 240 24"></svg>
+          <svg class="tally-svg" width="90" height="20" viewBox="0 0 90 20"></svg>
         </div>
       </div>
       <p class="mt-6 text-xs text-[var(--ink-soft)] font-mono">Live counts from <code>data/output/</code> as of the last dataset build.</p>
@@ -203,8 +229,75 @@
   </div>
 </section>
 
+<!-- ============ MAP ============ -->
+<section id="map" class="viz border-t hairline bg-[var(--paper-dim)]">
+  <div class="max-w-7xl mx-auto px-6 py-20 md:py-28">
+    <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--gold)] mb-3">Map</p>
+    <h2 class="font-display font-semibold text-3xl md:text-4xl mb-3">Map the count.</h2>
+    <p class="text-lg text-[var(--ink-soft)] max-w-3xl leading-relaxed mb-8">
+      Every city and municipality that reported a ballot, 2016 to 2025 — 1,642 of them,
+      joined to their boundaries on PSGC code rather than on name. Click a province to go
+      in; click a town to read its full tally.
+    </p>
+
+    <!-- controls -->
+    <div class="flex flex-wrap gap-4 mb-6 items-end">
+      <div>
+        <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1" for="map-year">Year</label>
+        <select id="map-year" class="font-mono text-sm border hairline bg-[var(--paper)] px-3 py-2 rounded-sm"></select>
+      </div>
+      <div>
+        <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1" for="map-race">Race</label>
+        <select id="map-race" class="font-mono text-sm border hairline bg-[var(--paper)] px-3 py-2 rounded-sm"></select>
+      </div>
+      <div>
+        <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1">Colour by</label>
+        <div class="inline-flex border hairline rounded-sm overflow-hidden" id="map-mode" role="group">
+          <button data-mode="winner" class="mode-btn font-mono text-sm px-3 py-2">Who led</button>
+          <button data-mode="turnout" class="mode-btn font-mono text-sm px-3 py-2">Votes cast</button>
+        </div>
+      </div>
+      <button id="map-reset" class="btn-ghost font-mono text-sm px-4 py-2 rounded-sm">Whole country</button>
+    </div>
+
+    <!-- breadcrumb -->
+    <p class="font-mono text-sm text-[var(--ink-soft)] mb-3" id="map-crumb">Philippines</p>
+
+    <div class="grid lg:grid-cols-3 gap-6">
+      <!-- the map -->
+      <div class="lg:col-span-2 card relative overflow-hidden" style="min-height:520px;">
+        <svg id="map-svg" class="w-full block" style="height:620px;" role="img"
+             aria-label="Choropleth of Philippine election results by city and municipality"></svg>
+        <div id="map-tip" class="pointer-events-none absolute z-10 hidden px-3 py-2 rounded-sm text-xs"
+             style="background:var(--paper); border:1px solid var(--line); max-width:230px;"></div>
+        <p id="map-loading" class="absolute inset-0 flex items-center justify-center font-mono text-sm text-[var(--ink-soft)]">
+          Loading the boundaries…
+        </p>
+      </div>
+
+      <!-- legend + detail -->
+      <div class="card p-6 flex flex-col gap-6">
+        <div>
+          <h3 class="font-display font-semibold text-lg mb-1" id="legend-title">Who led</h3>
+          <p class="text-xs text-[var(--ink-soft)] mb-4" id="legend-note"></p>
+          <ul class="space-y-2 text-sm" id="map-legend"></ul>
+        </div>
+        <div class="border-t hairline pt-5" id="map-detail">
+          <p class="text-sm text-[var(--ink-soft)]">Hover a town to see who led it. Click for the full tally.</p>
+        </div>
+      </div>
+    </div>
+
+    <p class="mt-4 font-mono text-sm text-[var(--ink-soft)] max-w-3xl leading-relaxed">
+      Totals are sums of the localities inside the Philippines, so nationwide races run
+      slightly under COMELEC's official canvass, which also counts overseas votes.
+      See <a href="#issues" class="underline">Data quality</a>.
+    </p>
+  </div>
+</section>
+
 <!-- ============ EXPLORE ============ -->
-<section id="explore" class="border-t hairline bg-[var(--paper-dim)]">
+<section id="explore" class="border-t hairline">
   <div class="max-w-7xl mx-auto px-6 py-20 md:py-28">
     <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--gold)] mb-3">Explore</p>
     <h2 class="font-display font-semibold text-3xl md:text-4xl mb-10">Filter the count.</h2>
@@ -300,6 +393,7 @@
         <li>No vote counts from 2013 back. 2013 has no recoverable municipality-level source at all; 2010 exists only as winners-only PDFs covering 83% of towns.</li>
         <li><strong style="color:var(--ink);">Overseas absentee votes are not in the dataset.</strong> Every total is a sum of the localities inside the Philippines, so nationwide races run slightly under COMELEC's official canvass — Duterte's 2016 presidential total comes to 15.85M here against an official 16.60M. Local races are unaffected.</li>
         <li>2022's national races are withheld pending a re-scrape. The original 2022 scrape was truncated: it captured 7 of the 10 presidential candidates and none of the party-list race — Leni Robredo, who finished second with roughly 15M votes, is missing from it entirely.</li>
+        <li>Boundaries are the PSA's 2023 PSGC vintage, joined to the ballots on PSGC code rather than on name — so Cebu City, Cotabato City and the rest of the 16 province-independent cities land where they belong. One imprecision remains: the eight BARMM Special Geographic Area municipalities, created in 2024, are drawn from their 2020 interim-cluster boundaries, and three barangays (Dunguan, Macabual, Panicupan) moved between municipalities afterwards. Their votes are correct — the join is per municipality — but the drawn edge of four of those eight is one barangay out.</li>
       </ul>
     </div>
     <p class="mt-4 font-mono text-base text-[var(--ink-soft)]">Spot something else? See the <a href="https://github.com/RobertRLeung/OpenHalalan" class="underline">audit log</a> or <a href="#questions" class="underline">let us know</a>.</p>
@@ -384,43 +478,378 @@
 </footer>
 
 <script>
+// ============================================================================
+// THE MAP
+// ----------------------------------------------------------------------------
+// Two payloads, both fetched lazily the first time the section is scrolled into
+// view - together they are ~1.3 MB gzipped, which is not something to hand a
+// phone that never scrolls this far.
+//
+//   map_geo.json   1,642 city/municipality outlines + 88 province outlines, as
+//                  one TopoJSON keyed by PSGC code. Built by
+//                  data/site/build_map_geo.py.
+//   map_data.json  every race, every locality: who led it, by how much, and the
+//                  top six candidates. Built by data/site/build_map_data.py.
+//
+// The two are joined on PSGC CODE, never on name - which is the only reason
+// Cebu City, Cotabato City and the eight 2024 BARMM municipalities land where
+// they belong. See the build scripts for the ugly parts.
+// ============================================================================
+const MAP = {
+  geo: null, data: null, loaded: false,
+  race: null, mode: "winner",
+  colours: new Map(),          // colour key -> css colour, for the current race
+  byPsgc: new Map(),           // psgc -> cell, for the current race
+  focus: null,                 // province psgc we are zoomed into, or null
+};
+
+const SLOTS = ["--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8"];
+// One hue, dark to light: on a dark page the low end should recede into the
+// paper, not glow. Reversed from the light-mode convention on purpose.
+const RAMP = ["#0d366b","#184f95","#256abf","#2a78d6","#3987e5","#5598e7",
+              "#86b6ef","#b7d3f6","#cde2fb"];
+
+// A local race has a different winner in every town, so colouring by candidate
+// would need 1,600 hues. Colour those by the winner's PARTY instead; national
+// races are the same contest everywhere, so they colour by candidate.
+const BY_PARTY = new Set(["GOVERNOR", "MAYOR"]);
+
+const svg      = d3.select("#map-svg");
+const gMap     = svg.append("g");
+const gLgu     = gMap.append("g");
+const gProv    = gMap.append("g");
+const tip      = document.getElementById("map-tip");
+const elYear   = document.getElementById("map-year");
+const elRace   = document.getElementById("map-race");
+const elCrumb  = document.getElementById("map-crumb");
+const elLegend = document.getElementById("map-legend");
+const elDetail = document.getElementById("map-detail");
+
+let path, projection, lguFeatures, provFeatures, zoom;
+
+const fmt = n => n.toLocaleString();
+const pct = (a, b) => b > 0 ? (100 * a / b).toFixed(1) + "%" : "—";
+const title = s => s.replace(/\w\S*/g, w => w[0] + w.slice(1).toLowerCase())
+                    .replace(/\bOf\b/g, "of");
+
+// ---------- load ----------
+function loadMap(){
+  if(MAP.loaded) return;
+  MAP.loaded = true;
+  Promise.all([
+    fetch("map_geo.json").then(r => r.json()),
+    fetch("map_data.json").then(r => r.json()),
+  ]).then(([geo, data]) => {
+    MAP.geo = geo;
+    MAP.data = data;
+    document.getElementById("map-loading").remove();
+    initMap();
+  }).catch(() => {
+    document.getElementById("map-loading").textContent =
+      "Could not load the map data.";
+  });
+}
+
+new IntersectionObserver((entries, obs) => {
+  if(entries.some(e => e.isIntersecting)){ loadMap(); obs.disconnect(); }
+}, {rootMargin: "300px"}).observe(document.getElementById("map"));
+
+// ---------- set up ----------
+function initMap(){
+  const geo = MAP.geo;
+  lguFeatures  = topojson.feature(geo, geo.objects.lgus).features;
+  provFeatures = topojson.feature(geo, geo.objects.provs).features;
+
+  const box = svg.node().getBoundingClientRect();
+  const w = box.width, h = box.height;
+
+  // Equal-area, because this is a choropleth: a Mercator would inflate Luzon
+  // relative to Mindanao and quietly overstate the north.
+  projection = d3.geoConicEqualArea()
+    .parallels([8, 18]).rotate([-122, 0])
+    .fitSize([w, h], {type: "FeatureCollection", features: lguFeatures});
+  path = d3.geoPath(projection);
+
+  gLgu.selectAll("path").data(lguFeatures).join("path")
+    .attr("class", "lgu")
+    .attr("d", path)
+    .on("mousemove", onHover)
+    .on("mouseleave", offHover)
+    .on("click", onClickLgu);
+
+  gProv.selectAll("path").data(provFeatures).join("path")
+    .attr("class", "prov-line")
+    .attr("d", path);
+
+  zoom = d3.zoom().scaleExtent([1, 40])
+    .on("zoom", e => {
+      gMap.attr("transform", e.transform);
+      gMap.selectAll(".lgu").style("stroke-width", 0.3 / Math.sqrt(e.transform.k));
+    });
+  svg.call(zoom);
+
+  // races, newest first
+  const years = [...new Set(MAP.data.races.map(r => r[0]))].sort((a, b) => b - a);
+  elYear.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join("");
+  elYear.value = 2025;
+  fillRaces();
+  elRace.value = "MAYOR";
+
+  elYear.addEventListener("change", () => { fillRaces(); draw(); });
+  elRace.addEventListener("change", draw);
+  document.querySelectorAll(".mode-btn").forEach(b => {
+    b.addEventListener("click", () => { MAP.mode = b.dataset.mode; draw(); });
+  });
+  document.getElementById("map-reset").addEventListener("click", resetZoom);
+
+  draw();
+}
+
+function fillRaces(){
+  const y = +elYear.value;
+  const keep = elRace.value;
+  const races = MAP.data.races
+    .map((r, i) => ({i, year: r[0], pos: r[1]}))
+    .filter(r => r.year === y);
+  elRace.innerHTML = races
+    .map(r => `<option value="${r.pos}">${title(r.pos)}</option>`).join("");
+  elRace.value = races.some(r => r.pos === keep) ? keep : races[0].pos;
+}
+
+// ---------- draw ----------
+function draw(){
+  const y = +elYear.value, pos = elRace.value;
+  const ri = MAP.data.races.findIndex(r => r[0] === y && r[1] === pos);
+  MAP.race = ri;
+
+  MAP.byPsgc = new Map();
+  for(const c of MAP.data.cells) if(c[0] === ri) MAP.byPsgc.set(c[1], c);
+
+  document.querySelectorAll(".mode-btn").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.dataset.mode === MAP.mode)));
+
+  MAP.mode === "winner" ? drawWinner(pos) : drawTurnout(pos);
+  offHover();
+}
+
+/** The key a locality is coloured by: the leading candidate, or their party. */
+function leaderKey(cell, pos){
+  const [id] = cell[3][0];
+  const [name, party] = MAP.data.candidates[id];
+  return BY_PARTY.has(pos) ? (party || "Independent") : name;
+}
+
+function drawWinner(pos){
+  // Rank the contenders by how many localities each led, and give the top eight
+  // the eight slots in fixed order. A ninth is "Other" - never a ninth hue.
+  const led = new Map();
+  for(const cell of MAP.byPsgc.values()){
+    const k = leaderKey(cell, pos);
+    led.set(k, (led.get(k) || 0) + 1);
+  }
+  const ranked = [...led.entries()].sort((a, b) => b[1] - a[1]);
+  const top = ranked.slice(0, 8);
+
+  MAP.colours = new Map(top.map(([k], i) =>
+    [k, `var(${SLOTS[i]})`]));
+
+  gLgu.selectAll(".lgu")
+    .style("fill", d => {
+      const cell = MAP.byPsgc.get(d.properties.id);
+      if(!cell) return "var(--no-data)";
+      return MAP.colours.get(leaderKey(cell, pos)) || "var(--s-other)";
+    })
+    .style("fill-opacity", 1);
+
+  const others = ranked.length - top.length;
+  document.getElementById("legend-title").textContent = "Who led";
+  document.getElementById("legend-note").textContent = BY_PARTY.has(pos)
+    ? "Party of the candidate who led each city and municipality."
+    : "Candidate who led each city and municipality.";
+
+  elLegend.innerHTML = top.map(([k, n], i) => `
+    <li class="flex items-center gap-2">
+      <span class="swatch" style="background:var(${SLOTS[i]})"></span>
+      <span class="flex-1 truncate" title="${k}">${k}</span>
+      <span class="font-mono text-xs text-[var(--ink-soft)]">${fmt(n)}</span>
+    </li>`).join("")
+    + (others > 0 ? `
+    <li class="flex items-center gap-2">
+      <span class="swatch" style="background:var(--s-other)"></span>
+      <span class="flex-1 text-[var(--ink-soft)]">Other (${others})</span>
+      <span class="font-mono text-xs text-[var(--ink-soft)]">${
+        fmt(ranked.slice(8).reduce((a, b) => a + b[1], 0))}</span>
+    </li>` : "")
+    + `<li class="flex items-center gap-2 pt-1">
+      <span class="swatch" style="background:var(--no-data)"></span>
+      <span class="flex-1 text-[var(--ink-soft)]">No result this cycle</span>
+    </li>`;
+}
+
+function drawTurnout(pos){
+  const totals = [...MAP.byPsgc.values()].map(c => c[2]);
+  // Votes cast is heavily skewed - Quezon City casts 400x what Kalayaan does - so
+  // the ramp is cut on quantiles of the actual distribution, not on equal
+  // intervals, which would paint the whole country the palest step but for a
+  // dozen cities.
+  const scale = d3.scaleQuantile().domain(totals).range(RAMP);
+  MAP.colours = null;
+
+  gLgu.selectAll(".lgu")
+    .style("fill", d => {
+      const cell = MAP.byPsgc.get(d.properties.id);
+      return cell ? scale(cell[2]) : "var(--no-data)";
+    })
+    .style("fill-opacity", 1);
+
+  const cuts = scale.quantiles();
+  document.getElementById("legend-title").textContent = "Votes cast";
+  document.getElementById("legend-note").textContent =
+    `Total ballots counted in this race, per city and municipality. Nine equal-count bands.`;
+  elLegend.innerHTML = RAMP.map((c, i) => {
+    const lo = i === 0 ? d3.min(totals) : cuts[i - 1];
+    const hi = i === RAMP.length - 1 ? d3.max(totals) : cuts[i];
+    return `<li class="flex items-center gap-2">
+      <span class="swatch" style="background:${c}"></span>
+      <span class="font-mono text-xs text-[var(--ink-soft)]">${fmt(Math.round(lo))} – ${fmt(Math.round(hi))}</span>
+    </li>`;
+  }).join("");
+}
+
+// ---------- interaction ----------
+function onHover(event, d){
+  const cell = MAP.byPsgc.get(d.properties.id);
+  const prov = MAP.geo.adm2[d.properties.p];
+  let html = `<p class="font-medium">${d.properties.n}</p>
+    <p class="text-[var(--ink-soft)]">${prov ? prov.n : ""}</p>`;
+  if(cell){
+    const [id, v] = cell[3][0];
+    const [name, party] = MAP.data.candidates[id];
+    html += `<p class="mt-1">${name}${party ? ` <span class="text-[var(--ink-soft)]">(${party})</span>` : ""}</p>
+      <p class="font-mono">${fmt(v)} of ${fmt(cell[2])} — ${pct(v, cell[2])}</p>`;
+  } else {
+    html += `<p class="mt-1 text-[var(--ink-soft)]">No result this cycle</p>`;
+  }
+  tip.innerHTML = html;
+  tip.classList.remove("hidden");
+  const box = svg.node().getBoundingClientRect();
+  const x = event.clientX - box.left, y = event.clientY - box.top;
+  tip.style.left = Math.min(x + 14, box.width - 240) + "px";
+  tip.style.top = Math.max(y - 10, 4) + "px";
+}
+
+function offHover(){ tip.classList.add("hidden"); }
+
+function onClickLgu(event, d){
+  // First click on a town in an un-zoomed map goes to its province; a second,
+  // once you are already there, opens the town itself.
+  if(MAP.focus !== d.properties.p) zoomTo(d.properties.p);
+  showDetail(d);
+}
+
+function zoomTo(provPsgc){
+  MAP.focus = provPsgc;
+  const members = lguFeatures.filter(f => f.properties.p === provPsgc);
+  const fc = {type: "FeatureCollection", features: members};
+  const [[x0, y0], [x1, y1]] = path.bounds(fc);
+  const box = svg.node().getBoundingClientRect();
+  const k = Math.min(40, 0.9 / Math.max((x1 - x0) / box.width, (y1 - y0) / box.height));
+  const t = d3.zoomIdentity
+    .translate(box.width / 2, box.height / 2)
+    .scale(k)
+    .translate(-(x0 + x1) / 2, -(y0 + y1) / 2);
+  svg.transition().duration(650).call(zoom.transform, t);
+
+  gLgu.selectAll(".lgu").classed("dim", f => f.properties.p !== provPsgc);
+  const prov = MAP.geo.adm2[provPsgc];
+  const reg = prov ? MAP.geo.regions[prov.r] : "";
+  elCrumb.innerHTML =
+    `<a href="#" id="crumb-home" class="underline">Philippines</a> ›
+     <span class="text-[var(--ink-soft)]">${reg || ""}</span> ›
+     <span style="color:var(--ink)">${prov ? prov.n : ""}</span>`;
+  document.getElementById("crumb-home")
+    .addEventListener("click", e => { e.preventDefault(); resetZoom(); });
+}
+
+function resetZoom(){
+  MAP.focus = null;
+  svg.transition().duration(650).call(zoom.transform, d3.zoomIdentity);
+  gLgu.selectAll(".lgu").classed("dim", false);
+  elCrumb.textContent = "Philippines";
+  elDetail.innerHTML =
+    `<p class="text-sm text-[var(--ink-soft)]">Hover a town to see who led it. Click for the full tally.</p>`;
+}
+
+function showDetail(d){
+  const cell = MAP.byPsgc.get(d.properties.id);
+  const prov = MAP.geo.adm2[d.properties.p];
+  if(!cell){
+    elDetail.innerHTML = `<p class="font-display font-semibold text-lg">${d.properties.n}</p>
+      <p class="text-sm text-[var(--ink-soft)] mt-1">No result in this race this cycle.</p>`;
+    return;
+  }
+  const rows = cell[3].map(([id, v]) => {
+    const [name, party] = MAP.data.candidates[id];
+    const key = BY_PARTY.has(elRace.value) ? (party || "Independent") : name;
+    const colour = (MAP.colours && MAP.colours.get(key)) || "var(--s-other)";
+    return `<li class="mb-3">
+      <div class="flex justify-between items-baseline gap-2 text-sm">
+        <span class="truncate">${name}${party ? ` <span class="text-[var(--ink-soft)] text-xs">${party}</span>` : ""}</span>
+        <span class="font-mono text-xs whitespace-nowrap">${fmt(v)} · ${pct(v, cell[2])}</span>
+      </div>
+      <div class="tally-bar mt-1" style="background:${colour}; width:${Math.max(2, 100 * v / cell[2])}%"></div>
+    </li>`;
+  }).join("");
+  const shown = cell[3].reduce((a, [, v]) => a + v, 0);
+  const rest = cell[2] - shown;
+
+  elDetail.innerHTML = `
+    <p class="font-display font-semibold text-lg leading-tight">${d.properties.n}</p>
+    <p class="text-xs text-[var(--ink-soft)] mb-1">${prov ? prov.n : ""}</p>
+    <p class="font-mono text-xs text-[var(--ink-soft)] mb-4">
+      ${title(elRace.value)} · ${elYear.value} · ${fmt(cell[2])} votes cast</p>
+    <ul>${rows}</ul>
+    ${rest > 0 ? `<p class="font-mono text-xs text-[var(--ink-soft)]">
+      + ${fmt(rest)} to other candidates</p>` : ""}`;
+}
+
 // ---------- Tally board count-up (SVG hash marks) ----------
+// The marks are the header logo's, repeated: strokes 3 wide on a 4 pitch, 12 tall, with
+// every fifth laid diagonally across the four before it. The SVG is sized to its viewBox,
+// so one user unit is one CSS pixel and these come out the same size as the logo's. Do not
+// reintroduce non-scaling-stroke - it decouples stroke width from the pitch, which is what
+// made these mismatch in the first place.
+const STROKE_PITCH = 4;   // gap between two vertical marks, as in the logo
+const GROUP_PITCH  = 22;  // gap between the first mark of one group of five and the next
+const MARK_TOP = 4, MARK_BOTTOM = 16;
+
+function tallyMark(x1, y1, x2, y2, stroke){
+  const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  l.setAttribute("x1", x1); l.setAttribute("y1", y1);
+  l.setAttribute("x2", x2); l.setAttribute("y2", y2);
+  l.setAttribute("class", "tally-mark");     // stroke-width:3, round caps - as the logo
+  if(stroke) l.setAttribute("stroke", stroke);
+  return l;
+}
+
+function verticals(svg, x0, n){
+  for(let i = 0; i < n; i++){
+    const x = x0 + i * STROKE_PITCH;
+    svg.appendChild(tallyMark(x, MARK_BOTTOM, x, MARK_TOP));
+  }
+}
+
 function drawTally(svg, count){
   svg.innerHTML = "";
-  const groups = Math.floor(count/5), remainder = count%5;
-  let x = 2;
-  const top = 5, bottom = 27;
-  for(let g=0; g<groups; g++){
-    for(let i=0;i<4;i++){
-      const l = document.createElementNS("http://www.w3.org/2000/svg","line");
-      l.setAttribute("x1", x); l.setAttribute("x2", x);
-      l.setAttribute("y1", top); l.setAttribute("y2", bottom);
-      l.setAttribute("class","tally-mark");
-      l.setAttribute("vector-effect","non-scaling-stroke");
-      l.style.strokeWidth = "4.5";
-      svg.appendChild(l);
-      x += 4;
-    }
-    const d = document.createElementNS("http://www.w3.org/2000/svg","line");
-    d.setAttribute("x1", x-18); d.setAttribute("x2", x+2);
-    d.setAttribute("y1", bottom); d.setAttribute("y2", top);
-    d.setAttribute("class","tally-mark");
-    d.setAttribute("stroke","var(--stamp)");
-    d.setAttribute("vector-effect","non-scaling-stroke");
-    d.style.strokeWidth = "4.5";
-    svg.appendChild(d);
-    x += 8;
+  const groups = Math.floor(count / 5), remainder = count % 5;
+
+  for(let g = 0; g < groups; g++){
+    const x0 = 4 + g * GROUP_PITCH;
+    verticals(svg, x0, 4);
+    // The diagonal overhangs the four uprights by 2 on each side, as it does in the logo.
+    svg.appendChild(tallyMark(x0 - 2, 15, x0 + 14, 5, "var(--stamp)"));
   }
-  for(let i=0;i<remainder;i++){
-    const l = document.createElementNS("http://www.w3.org/2000/svg","line");
-    l.setAttribute("x1", x); l.setAttribute("x2", x);
-    l.setAttribute("y1", top); l.setAttribute("y2", bottom);
-    l.setAttribute("class","tally-mark");
-    l.setAttribute("vector-effect","non-scaling-stroke");
-    l.style.strokeWidth = "4.5";
-    svg.appendChild(l);
-    x += 4;
-  }
+  verticals(svg, 4 + groups * GROUP_PITCH, remainder);
 }
 
 function animateTally(row){
