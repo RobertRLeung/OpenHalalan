@@ -155,6 +155,13 @@
   @media (prefers-reduced-motion: reduce){
     *{animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; scroll-behavior:auto !important;}
   }
+  /* On a phone a <select> is as wide as its widest option ("Bangsamoro Autonomous
+     Region..."), which is wider than the screen and shoves the whole page sideways. Stack
+     the map/explore controls into full-width rows on small screens so each select fits. */
+  @media (max-width: 639px){
+    .flex.flex-wrap.items-end > div{ flex-basis:100%; min-width:0; }
+    .flex.flex-wrap.items-end select{ width:100%; }
+  }
 </style>
 </head>
 <body class="antialiased">
