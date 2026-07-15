@@ -1,0 +1,28 @@
+name: Publish latest data
+
+# Keep the "data-latest" rolling release in sync with main, so the site's download
+# buttons always serve the current datasets without cutting a new Zenodo version.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "data/output/NLE_Winners_2004-2025.csv"
+      - "data/output/NLE_Vote_Counts_2016-2025.csv.gz"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upload datasets to the rolling release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload data-latest \
+            data/output/NLE_Winners_2004-2025.csv \
+            data/output/NLE_Vote_Counts_2016-2025.csv.gz \
+            --clobber
