@@ -47,8 +47,9 @@ from config import (
     winners_csv,
 )
 
-# The seven local/district offices the winners dataset covers. Nationwide races (senator,
-# party list, president) and the BARMM parliament are in the vote counts but not here.
+# The seven local and district offices. The nationwide winners (president, vice president,
+# senator) are added separately by build_national(); party list and the BARMM parliament
+# stay in the vote counts only.
 LOCAL_OFFICES = [
     "GOVERNOR",
     "VICE GOVERNOR",
@@ -78,6 +79,11 @@ SINGLE_SEAT = {
     "MAYOR",
     "VICE MAYOR",
 }
+
+# Nationwide races: one contest for the whole country, so the winner is the top-N by votes
+# summed across every locality (overseas and local-absentee rows included). Party list is
+# left out - its "candidates" are organisations and its seats need the BANAT allocation.
+NATIONAL_SEATS = {"PRESIDENT": 1, "VICE PRESIDENT": 1, "SENATOR": 12}
 
 
 def board_seats_per_district(ballots):
@@ -120,6 +126,38 @@ def seats_for(position, province, board_seats):
     if position == "COUNCILOR":
         return DEFAULT_COUNCILORS
     return board_seats.get(province, 4)  # PROVINCIAL BOARD MEMBER
+
+
+def build_national(ballots, year):
+    """PRESIDENT / VICE PRESIDENT / SENATOR: sum every locality nationwide, take the seats
+    filled. No is_geographic filter - overseas and local-absentee votes are real ballots and
+    are what make the totals match COMELEC's canvass. National offices have no geography, so
+    region / province / city / district are left blank."""
+    year_rows = ballots[ballots["year"] == year]
+    rows = []
+    for position, seats in NATIONAL_SEATS.items():
+        race = year_rows[year_rows["position"] == position]
+        if race.empty:
+            continue
+        tally = (
+            race.groupby(["candidate_name", "party"], dropna=False, as_index=False)
+            .agg(
+                votes=("votes", "sum"),
+                last_name=("last_name", "first"),
+                first_name=("first_name", "first"),
+                middle_name=("middle_name", "first"),
+                title=("title", "first"),
+            )
+        )
+        for _, r in tally.nlargest(seats, "votes").iterrows():
+            rows.append({
+                "region": None, "province": None, "city": None, "district": None,
+                "position": position, "candidate_name": r["candidate_name"],
+                "last_name": r["last_name"], "first_name": r["first_name"],
+                "middle_name": r["middle_name"], "title": r["title"],
+                "party": r["party"], "votes": r["votes"],
+            })
+    return rows
 
 
 def build_year(ballots, year, board_seats):
@@ -172,6 +210,8 @@ def build_year(ballots, year, board_seats):
                     "party": r["party"],
                     "votes": r["votes"],
                 })
+
+    rows.extend(build_national(ballots, year))
 
     out = pd.DataFrame(rows)
     print(f"\n{year}: {len(out):,} winners")

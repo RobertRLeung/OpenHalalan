@@ -221,6 +221,9 @@ def main():
     say("reading the winners ...")
     w = pd.read_csv(WINNERS_CSV, low_memory=False)
     w = w[w["Last Name"].notna() & w["First Name"].notna()].copy()
+    # Nationwide offices (senator, president, vice president) have no province, so they play
+    # no part in a province/town dynasty reading. Drop them before the geography mapping.
+    w = w[~w["Position"].isin(["PRESIDENT", "VICE PRESIDENT", "SENATOR"])]
 
     w["surname"] = w["Last Name"].map(fold)
     w["given"] = w["First Name"].map(fold).str.split().str[0].fillna("")

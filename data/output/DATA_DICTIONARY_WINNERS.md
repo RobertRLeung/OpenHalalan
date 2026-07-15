@@ -12,12 +12,13 @@ Rebuild with `python run_all.py`. Audit with `python data/audit/make.py`.
 
 | 2004 | 2007 | 2010 | 2013 | 2016 | 2019 | 2022 | 2025 |
 |---|---|---|---|---|---|---|---|
-| 17,368 | 16,608 | 17,502 | 17,161 | 17,577 | 17,796 | 17,732 | 17,773 |
+| 17,368 | 16,608 | 17,502 | 17,161 | 17,774 | 17,793 | 17,818 | 17,819 |
 
 **Geographic.** 88 `Province` values (82 provinces, 4 NCR districts, plus the provinces
-created by the Maguindanao split) across 18 regions. No nulls.
+created by the Maguindanao split) across 18 regions. The only nulls are the nationwide
+races below, which have no province.
 
-**Offices.** Seven, and only these seven:
+**Offices.** The seven local and district offices, in every cycle:
 
 | Office | Level | Elected by |
 |---|---|---|
@@ -29,8 +30,13 @@ created by the Maguindanao split) across 18 regions. No nulls.
 | `VICE MAYOR` | municipal | city / municipality |
 | `COUNCILOR` | municipal | city / municipality (by council district where one exists) |
 
-**No nationwide races.** No President, Vice President, Senator or Party List rows. Those
-live in `NLE_Vote_Counts_2016-2025.csv.gz`.
+**Nationwide races, 2016 onward.** `PRESIDENT` and `VICE PRESIDENT` (presidential cycles
+2016 and 2022) and `SENATOR` (all four ballot cycles) are also included, reconstructed from
+`NLE_Vote_Counts_2016-2025.csv.gz` by summing each candidate's votes across every locality —
+overseas and local-absentee ballots included — and taking the seats filled (1 president, 1
+vice president, 12 senators). These rows have no `Province`, `City` or `Region`. `PARTY LIST`
+is still held back: its winners are organisations, not people, and its seats need the BANAT
+allocation. 2004–2013 predate the ballot-level source, so they carry no nationwide winners.
 
 ---
 

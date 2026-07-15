@@ -46,8 +46,13 @@ NATIONAL_OFFICES = {"PRESIDENT": 1, "VICE PRESIDENT": 1, "SENATOR": 12}
 
 
 def local_winners():
-    """Every winner in the published dataset, with votes where the ballots give them."""
+    """Every winner in the published dataset, with votes where the ballots give them.
+
+    The published dataset now carries the nationwide winners too, but this table sources
+    them from national_winners() (which adds vote totals and the "Nationwide" label), so
+    they are dropped here to avoid listing each senator twice."""
     w = pd.read_csv(WINNERS_CSV, low_memory=False)
+    w = w[~w["Position"].isin(NATIONAL_OFFICES)]
 
     # Votes live in the ballot-derived intermediates, not the published file.
     votes = []
