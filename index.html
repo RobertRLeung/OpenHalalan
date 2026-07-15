@@ -179,6 +179,7 @@
     <nav class="hidden md:flex items-center gap-8 text-sm font-mono uppercase tracking-wide text-[var(--ink-soft)]">
       <a href="#about" class="hover:text-[var(--hover)]">About</a>
       <a href="#map" class="hover:text-[var(--hover)]">Map</a>
+      <a href="#dynasties" class="hover:text-[var(--hover)]">Dynasties</a>
       <a href="#explore" class="hover:text-[var(--hover)]">Explore</a>
       <a href="#papers" class="hover:text-[var(--hover)]">Research</a>
       <a href="#issues" class="hover:text-[var(--hover)]">Data quality</a>
@@ -333,6 +334,92 @@
     </p>
   </div>
 </section>
+
+<!-- ============ DYNASTIES ============ -->
+<section id="dynasties" class="viz border-t hairline">
+  <div class="max-w-7xl mx-auto px-6 py-20 md:py-28">
+    <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--gold)] mb-3">Dynasties</p>
+    <h2 class="font-display font-semibold text-3xl md:text-4xl mb-3">Map the dynasties.</h2>
+    <p class="text-lg text-[var(--ink-soft)] max-w-3xl leading-relaxed mb-6">
+      How much of local office is held by families? Each place is shaded by the share of its
+      winning candidates who belong to a political family — one surname holding more than one
+      seat. Click a province to drop into its towns; click a place to see the families
+      themselves.
+    </p>
+
+    <!-- thin / fat explainer -->
+    <div class="grid md:grid-cols-2 gap-4 mb-8">
+      <div class="card p-5">
+        <p class="font-mono text-xs uppercase tracking-wide text-[var(--gold)] mb-1">Thin · sunud-sunod</p>
+        <p class="text-sm text-[var(--ink-soft)] leading-relaxed">One after another. The family
+          holds a seat across different years — a mayor succeeded by a sibling, a spouse, a
+          child. Succession over time.</p>
+      </div>
+      <div class="card p-5">
+        <p class="font-mono text-xs uppercase tracking-wide text-[var(--gold)] mb-1">Fat · sabay-sabay</p>
+        <p class="text-sm text-[var(--ink-soft)] leading-relaxed">Side by side. The family holds
+          two or more seats in the same place at the same time — a mayor and their vice mayor,
+          a governor and a board member. Power held all at once.</p>
+      </div>
+    </div>
+
+    <!-- controls -->
+    <div class="flex flex-wrap gap-4 mb-6 items-end">
+      <div>
+        <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1" for="dyn-year">Year</label>
+        <select id="dyn-year" class="font-mono text-sm border hairline bg-[var(--paper)] px-3 py-2 rounded-sm"></select>
+      </div>
+      <div>
+        <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1">Relation</label>
+        <div class="inline-flex border hairline rounded-sm overflow-hidden" id="dyn-mode" role="group">
+          <button data-mode="both" class="mode-btn font-mono text-sm px-3 py-2">Both</button>
+          <button data-mode="thin" class="mode-btn font-mono text-sm px-3 py-2">Thin</button>
+          <button data-mode="fat"  class="mode-btn font-mono text-sm px-3 py-2">Fat</button>
+        </div>
+      </div>
+      <div>
+        <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1" for="dyn-region">Region</label>
+        <select id="dyn-region" class="font-mono text-sm border hairline bg-[var(--paper)] px-3 py-2 rounded-sm"></select>
+      </div>
+      <div>
+        <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1" for="dyn-prov">Province</label>
+        <select id="dyn-prov" class="font-mono text-sm border hairline bg-[var(--paper)] px-3 py-2 rounded-sm"></select>
+      </div>
+      <button id="dyn-reset" class="btn-ghost font-mono text-sm px-4 py-2 rounded-sm">Whole country</button>
+    </div>
+    <p class="font-mono text-xs text-[var(--ink-soft)] -mt-2 mb-4" id="dyn-crumb">Philippines · provinces</p>
+
+    <div class="grid lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 card relative overflow-hidden" style="min-height:520px;">
+        <svg id="dyn-svg" class="w-full block" style="height:620px;" role="img"
+             aria-label="Choropleth of dynastic share of local office by province and municipality"></svg>
+        <div id="dyn-tip" class="pointer-events-none absolute z-10 hidden px-3 py-2 rounded-sm text-xs"
+             style="background:var(--paper); border:1px solid var(--line); max-width:240px;"></div>
+        <p id="dyn-loading" class="absolute inset-0 flex items-center justify-center font-mono text-sm text-[var(--ink-soft)]">
+          Loading the families…
+        </p>
+      </div>
+
+      <div class="card p-6 flex flex-col gap-6">
+        <div>
+          <h3 class="font-display font-semibold text-lg mb-1">Dynastic share</h3>
+          <p class="text-xs text-[var(--ink-soft)] mb-4" id="dyn-legend-note"></p>
+          <ul class="space-y-2 text-sm" id="dyn-legend"></ul>
+        </div>
+        <div class="border-t hairline pt-5" id="dyn-detail">
+          <p class="text-sm text-[var(--ink-soft)]">Hover a place for its dynastic share. Click to see the families.</p>
+        </div>
+      </div>
+    </div>
+
+    <p class="mt-4 font-mono text-sm text-[var(--ink-soft)] max-w-3xl leading-relaxed">
+      Families are matched by shared surname within a region, so this counts surname coincidence
+      as kinship and reads loosest at the widest zoom. A proof of concept over 2016–2025;
+      see <a href="#issues" class="underline">Data quality</a>.
+    </p>
+  </div>
+</section>
+
 
 <!-- ============ EXPLORE ============ -->
 <section id="explore" class="border-t hairline">
@@ -514,6 +601,12 @@
 </footer>
 
 <script>
+// The boundary file is 2.85 MB and both maps draw on it, so it is fetched once and the
+// promise shared. The browser would cache the second request anyway, but this also avoids
+// parsing it twice.
+let _geoFetch = null;
+function fetchGeo(){ return _geoFetch ||= fetch("map_geo.json").then(r => r.json()); }
+
 // ============================================================================
 // THE MAP
 // ----------------------------------------------------------------------------
@@ -606,7 +699,7 @@ function loadMap(){
   if(MAP.loaded) return;
   MAP.loaded = true;
   Promise.all([
-    fetch("map_geo.json").then(r => r.json()),
+    fetchGeo(),
     fetch("map_data.json").then(r => r.json()),
   ]).then(([geo, data]) => {
     MAP.geo = geo;
@@ -1260,6 +1353,296 @@ new Chart(document.getElementById("chart-hop"), {
     }
   }
 });
+
+// ============================================================================
+// THE DYNASTY MAP
+// ----------------------------------------------------------------------------
+// Same geometry as the results map (shared fetch, parsed once), coloured instead
+// by the share of a place's winning candidates who belong to a political family.
+//
+//   dynasty_rates.json  {level: {unitPSGC: {year: [both, fat, thin, total]}}}
+//   dynasty_clans.json  {level: {unitPSGC: [family, ...]}} - for the detail panel
+//
+// Built by data/site/build_dynasties.py from the winners dataset. A family is a
+// surname within a region, so the reading is loosest at the widest zoom and the
+// build refuses to pretend otherwise. Proof of concept, 2016-2025.
+// ============================================================================
+const DYN = {
+  loaded: false, rates: null, clans: null,
+  year: 2022, mode: "both",
+  region: null, prov: null,           // scope; null,null = provinces of the whole country
+  byUnit: null,                       // unitPSGC -> [both,fat,thin,total] for current year/level
+};
+
+// One hue, dark (few dynasties, recedes into the paper) to bright (family-held).
+const DRAMP = ["#3a2429", "#6d2f38", "#a03a44", "#c8434d", "#e8828a"];
+const DBANDS = [0.2, 0.4, 0.6, 0.8];   // upper edges of the first four bands
+
+const dsvg   = d3.select("#dyn-svg");
+const dgMap  = dsvg.append("g");
+const dgLgu  = dgMap.append("g");
+const dgProv = dgMap.append("g");
+const dtip   = document.getElementById("dyn-tip");
+const dYear  = document.getElementById("dyn-year");
+const dRegion= document.getElementById("dyn-region");
+const dProv  = document.getElementById("dyn-prov");
+const dCrumb = document.getElementById("dyn-crumb");
+const dLegend= document.getElementById("dyn-legend");
+const dDetail= document.getElementById("dyn-detail");
+
+let dpath, dproj, dLgu, dProvF, dzoom;
+
+// municipalities when a single province is open, provinces otherwise.
+const dLevel = () => DYN.prov ? "municipality" : "province";
+
+function dBand(v){
+  if(v == null) return "var(--no-data)";
+  let i = 0; while(i < DBANDS.length && v > DBANDS[i]) i++;
+  return DRAMP[i];
+}
+function dShare(cell){
+  if(!cell || !cell[3]) return null;
+  const num = DYN.mode === "fat" ? cell[1] : DYN.mode === "thin" ? cell[2] : cell[0];
+  return num / cell[3];
+}
+
+// ---------- load ----------
+function loadDyn(){
+  if(DYN.loaded) return;
+  DYN.loaded = true;
+  Promise.all([
+    fetchGeo(),
+    fetch("dynasty_rates.json").then(r => r.json()),
+    fetch("dynasty_clans.json").then(r => r.json()),
+  ]).then(([geo, rates, clans]) => {
+    DYN.rates = rates; DYN.clans = clans;
+    document.getElementById("dyn-loading").remove();
+    initDyn(geo);
+  }).catch(() => {
+    document.getElementById("dyn-loading").textContent = "Could not load the dynasty data.";
+  });
+}
+new IntersectionObserver((e, obs) => {
+  if(e.some(x => x.isIntersecting)){ loadDyn(); obs.disconnect(); }
+}, {rootMargin: "300px"}).observe(document.getElementById("dynasties"));
+
+// ---------- set up ----------
+function initDyn(geo){
+  DYN.geo = geo;
+  dLgu   = topojson.feature(geo, geo.objects.lgus).features;
+  dProvF = topojson.feature(geo, geo.objects.provs).features;
+
+  const box = dsvg.node().getBoundingClientRect();
+  dproj = d3.geoConicEqualArea().parallels([8, 18]).rotate([-122, 0])
+    .fitSize([box.width, box.height], {type: "FeatureCollection", features: dLgu});
+  dpath = d3.geoPath(dproj);
+
+  dgLgu.selectAll("path").data(dLgu).join("path")
+    .attr("class", "lgu").attr("d", dpath).style("display", "none")
+    .on("mousemove", dHover).on("mouseleave", dOff)
+    .on("click", (e, d) => { dOpen(d.properties.r, d.properties.p); dDetailFor("municipality", d.properties.id, d.properties.n, d.properties.p); });
+
+  dgProv.selectAll("path").data(dProvF).join("path")
+    .attr("class", "lgu").attr("d", dpath)
+    .on("mousemove", dHover).on("mouseleave", dOff)
+    .on("click", (e, d) => { dOpen(d.properties.r, d.properties.id); dDetailFor("province", d.properties.id, d.properties.n, null); });
+
+  dzoom = d3.zoom().scaleExtent([1, 60]).on("zoom", e => dgMap.attr("transform", e.transform));
+  dsvg.call(dzoom);
+
+  const years = [...new Set(Object.values(DYN.rates.rates.province)
+    .flatMap(u => Object.keys(u)))].map(Number).sort((a, b) => b - a);
+  dYear.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join("");
+  dYear.value = years.includes(2022) ? 2022 : years[0];
+  DYN.year = +dYear.value;
+
+  dRegion.innerHTML = `<option value="">All regions</option>` +
+    Object.entries(DYN.rates.regionNames).sort()
+      .map(([id, n]) => `<option value="${id}">${n}</option>`).join("");
+  dFillProvinces();
+
+  dYear.addEventListener("change", () => { DYN.year = +dYear.value; dDraw(); });
+  dRegion.addEventListener("change", () => dOpen(dRegion.value || null, null));
+  dProv.addEventListener("change", () => {
+    const p = dProv.value || null;
+    dOpen(p ? DYN.geo.adm2[p].r : DYN.region, p);
+  });
+  dProv.addEventListener("change", () => {});
+  document.querySelectorAll("#dyn-mode .mode-btn").forEach(b =>
+    b.addEventListener("click", () => { DYN.mode = b.dataset.mode; dDraw(); }));
+  document.getElementById("dyn-reset").addEventListener("click", () => dOpen(null, null));
+
+  dDraw();
+}
+
+function dFillProvinces(){
+  const inScope = Object.entries(DYN.geo.adm2)
+    .filter(([, v]) => !DYN.region || v.r === DYN.region)
+    .sort((a, b) => a[1].n.localeCompare(b[1].n));
+  dProv.innerHTML = `<option value="">All provinces</option>` +
+    inScope.map(([id, v]) => `<option value="${id}">${v.n}</option>`).join("");
+  dProv.value = DYN.prov || "";
+}
+
+// ---------- scope ----------
+function dOpen(region, prov){
+  DYN.region = region || null;
+  DYN.prov = prov || null;
+  dRegion.value = DYN.region || "";
+  dFillProvinces();
+  dDraw();
+  dZoomScope();
+}
+
+function dZoomScope(){
+  const box = dsvg.node().getBoundingClientRect();
+  if(!DYN.region && !DYN.prov){
+    dsvg.transition().duration(650).call(dzoom.transform, d3.zoomIdentity); return;
+  }
+  const members = DYN.prov
+    ? dLgu.filter(f => f.properties.p === DYN.prov)
+    : dLgu.filter(f => f.properties.r === DYN.region);
+  if(!members.length) return;
+  const [[x0, y0], [x1, y1]] = dpath.bounds({type: "FeatureCollection", features: members});
+  const k = Math.min(60, 0.92 / Math.max((x1 - x0) / box.width, (y1 - y0) / box.height));
+  dsvg.transition().duration(650).call(dzoom.transform, d3.zoomIdentity
+    .translate(box.width / 2, box.height / 2).scale(k)
+    .translate(-(x0 + x1) / 2, -(y0 + y1) / 2));
+}
+
+function dActive(){
+  if(dLevel() === "municipality") return dLgu.filter(f => f.properties.p === DYN.prov);
+  if(DYN.region) return dProvF.filter(f => f.properties.r === DYN.region);
+  return dProvF;
+}
+
+// ---------- draw ----------
+function dDraw(){
+  const level = dLevel();
+  DYN.byUnit = new Map();
+  const table = DYN.rates.rates[level];
+  for(const [unit, byYear] of Object.entries(table)){
+    const cell = byYear[DYN.year];
+    if(cell) DYN.byUnit.set(unit, cell);
+  }
+
+  document.querySelectorAll("#dyn-mode .mode-btn").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.dataset.mode === DYN.mode)));
+
+  const showProv = level === "province";
+  const active = new Set(dActive().map(f => f.properties.id));
+
+  dgLgu.selectAll(".lgu")
+    .style("display", showProv ? "none" : null)
+    .classed("dim", d => !active.has(d.properties.id))
+    .style("fill", d => showProv ? null : dBand(dShare(DYN.byUnit.get(d.properties.id))));
+  dgProv.selectAll("path")
+    .classed("dim", d => showProv && !active.has(d.properties.id))
+    .style("pointer-events", showProv ? null : "none")
+    .style("fill", d => showProv ? dBand(dShare(DYN.byUnit.get(d.properties.id))) : "none")
+    .style("stroke", showProv ? null : "rgba(255,255,255,0.55)")
+    .style("stroke-width", showProv ? null : "1.2px");
+
+  dLegendDraw();
+  dCrumbDraw();
+  dOff();
+}
+
+function dLegendDraw(){
+  const word = dLevel() === "municipality" ? "city and municipality" : "province";
+  document.getElementById("dyn-legend-note").textContent =
+    `Share of each ${word}'s winning candidates in a `
+    + (DYN.mode === "fat" ? "family holding two or more seats at once (fat)."
+     : DYN.mode === "thin" ? "family holding a seat across different years (thin)."
+     : "political family, thin or fat.");
+  const edges = [0, ...DBANDS, 1];
+  dLegend.innerHTML = DRAMP.map((c, i) =>
+    `<li class="flex items-center gap-2">
+       <span class="swatch" style="background:${c}"></span>
+       <span class="font-mono text-xs text-[var(--ink-soft)]">${Math.round(edges[i]*100)}–${Math.round(edges[i+1]*100)}%</span>
+     </li>`).join("")
+    + `<li class="flex items-center gap-2 pt-1">
+        <span class="swatch" style="background:var(--no-data)"></span>
+        <span class="text-[var(--ink-soft)] text-xs">No winners recorded</span></li>`;
+}
+
+function dCrumbDraw(){
+  const bits = [`<a href="#" data-to="home" class="underline">Philippines</a>`];
+  if(DYN.region){
+    const rn = DYN.geo.regions[DYN.region] || "";
+    bits.push(DYN.prov ? `<a href="#" data-to="region" class="underline">${rn}</a>`
+                       : `<span style="color:var(--ink)">${rn}</span>`);
+  }
+  if(DYN.prov) bits.push(`<span style="color:var(--ink)">${DYN.geo.adm2[DYN.prov].n}</span>`);
+  dCrumb.innerHTML = bits.join(" › ")
+    + `<span class="text-[var(--ink-soft)]"> · ${dLevel() === "municipality" ? "towns" : "provinces"}</span>`;
+  dCrumb.querySelectorAll("a").forEach(a => a.addEventListener("click", e => {
+    e.preventDefault();
+    a.dataset.to === "home" ? dOpen(null, null) : dOpen(DYN.region, null);
+  }));
+}
+
+// ---------- interaction ----------
+function dPct(v){ return v == null ? "—" : (v * 100).toFixed(0) + "%"; }
+
+function dHover(event, d){
+  const cell = DYN.byUnit.get(d.properties.id);
+  const v = dShare(cell);
+  const parent = dLevel() === "municipality"
+    ? (DYN.geo.adm2[d.properties.p] || {}).n || ""
+    : (DYN.geo.regions[d.properties.r] || "");
+  let html = `<p class="font-medium">${d.properties.n}</p>
+    <p class="text-[var(--ink-soft)]">${parent}</p>`;
+  html += cell
+    ? `<p class="mt-1 font-mono">${dPct(v)} dynastic <span class="text-[var(--ink-soft)]">(${cell[DYN.mode==="fat"?1:DYN.mode==="thin"?2:0]} of ${cell[3]} seats)</span></p>`
+    : `<p class="mt-1 text-[var(--ink-soft)]">No winners recorded</p>`;
+  dtip.innerHTML = html;
+  dtip.classList.remove("hidden");
+  const box = dsvg.node().getBoundingClientRect();
+  dtip.style.left = Math.min(event.clientX - box.left + 14, box.width - 250) + "px";
+  dtip.style.top = Math.max(event.clientY - box.top - 10, 4) + "px";
+}
+function dOff(){ dtip.classList.add("hidden"); }
+
+// ---------- detail: the families themselves ----------
+function dDetailFor(level, unit, name, provOfUnit){
+  const cell = DYN.byUnit.get(unit);
+  const fams = (DYN.clans[level] || {})[unit] || [];
+  const parent = level === "municipality"
+    ? (DYN.geo.adm2[provOfUnit] || {}).n || ""
+    : (DYN.geo.regions[(DYN.geo.adm2[unit]||{}).r] || "");
+
+  if(!fams.length){
+    dDetail.innerHTML = `<p class="font-display font-semibold text-lg">${name}</p>
+      <p class="text-xs text-[var(--ink-soft)] mt-1">${parent}</p>
+      <p class="text-sm text-[var(--ink-soft)] mt-3">No family holds more than one seat here.</p>`;
+    return;
+  }
+  const v = dShare(cell);
+  const tag = f =>
+    (f.thin ? `<span class="pct-tab text-[10px] px-1.5 py-0.5 rounded-sm" style="border:1px solid var(--line)">thin</span>` : "")
+  + (f.fat  ? ` <span class="pct-tab text-[10px] px-1.5 py-0.5 rounded-sm" style="border:1px solid var(--stamp);color:var(--stamp)">fat</span>` : "");
+
+  dDetail.innerHTML = `
+    <p class="font-display font-semibold text-lg leading-tight">${name}</p>
+    <p class="text-xs text-[var(--ink-soft)] mb-1">${parent}</p>
+    <p class="font-mono text-xs text-[var(--ink-soft)] mb-4">${dPct(v)} of seats family-held · ${fams.length} ${fams.length===1?"family":"families"} shown</p>
+    <ul class="space-y-4">${fams.map(f => `
+      <li>
+        <div class="flex items-baseline justify-between gap-2">
+          <span class="font-display font-semibold">${f.name}</span>
+          <span class="whitespace-nowrap">${tag(f)}</span>
+        </div>
+        <p class="font-mono text-[11px] text-[var(--ink-soft)] mb-1">${f.people} people · ${f.seats} seats</p>
+        <ul class="text-xs text-[var(--ink-soft)] space-y-0.5">
+          ${f.members.map(m => `<li><span class="text-[var(--ink)]">${m.name}</span> — ${
+            m.seats.map(([y, o]) => `${o} ’${String(y).slice(2)}`).join(", ")}</li>`).join("")}
+          ${f.more ? `<li class="italic">+ ${f.more} more</li>` : ""}
+        </ul>
+      </li>`).join("")}</ul>`;
+}
+
+
 </script>
 </body>
 </html>
