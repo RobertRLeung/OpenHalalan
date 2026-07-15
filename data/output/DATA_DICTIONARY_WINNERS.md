@@ -40,7 +40,7 @@ live in `NLE_Vote_Counts_2016-2025.csv.gz`.
 |---|---|---|
 | `Last Name` | string | Surname, upper case. |
 | `First Name` | string | Given name, upper case. |
-| `Middle Name` | string | Middle name. Often empty — the ballot feeds rarely report one. |
+| `Middle Name` | string | Middle name — a married woman's is her maiden surname, which is how one traces marriage ties between families. **~90% filled for 2004–2013, ~13% after:** COMELEC's recent feeds report only `SURNAME, FIRST`, so marriage-based kinship is recoverable for the older cycles and largely lost for the newer ones. |
 | `Title` | string | Honorific, where the source gave one: `ATTY.`, `DOC`, `DR.`, `ENGR.`, and the Moro honorifics `DATU`, `BAI`, `HADJI`. Usually empty. |
 | `Full Name` | string | **Canonical `SURNAME, FIRST MIDDLE` in every cycle.** Joins directly against `candidate_name` in the vote-counts dataset. |
 | `Position` | string | One of the seven offices above. |
