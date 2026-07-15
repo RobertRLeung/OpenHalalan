@@ -228,7 +228,7 @@
           </div>
           <svg class="tally-svg" width="90" height="20" viewBox="0 0 90 20"></svg>
         </div>
-        <div class="tally-row" data-target="4198178718" data-suffix="B" data-label="Votes counted, all cycles">
+        <div class="tally-row" data-target="4256473458" data-suffix="B" data-label="Votes counted, all cycles">
           <div class="flex justify-between items-baseline mb-1">
             <span class="text-sm">Votes counted, all cycles</span>
             <span class="font-mono text-2xl font-medium tally-value">0</span>
@@ -426,9 +426,8 @@
     </div>
 
     <p class="mt-4 font-mono text-sm text-[var(--ink-soft)] max-w-3xl leading-relaxed">
-      Totals are sums of the localities inside the Philippines, so nationwide races run
-      slightly under COMELEC's official canvass, which also counts overseas votes.
-      See <a href="#issues" class="underline">Data quality</a>.
+      The map places votes by locality. Overseas votes, which have no locality, are counted in
+      the dataset but not shown here. See <a href="#issues" class="underline">Data quality</a>.
     </p>
   </div>
 </section>
@@ -464,7 +463,7 @@
           <option value="all">All provinces</option>
         </select>
       </div>
-      <p class="font-mono text-xs text-[var(--ink-soft)] pb-2 max-w-xl">Every winner in the dataset, 139,822 rows across 8 cycles. National races are summed from the ballots and shown as "Nationwide". Vote totals exist only for the ballot-backed cycles (2016 on); earlier ones show an em dash. See <a href="#issues" class="underline">Data quality</a>.</p>
+      <p class="font-mono text-xs text-[var(--ink-soft)] pb-2 max-w-xl">Every winner in the dataset, 139,843 rows across 8 cycles. National races are summed from the ballots and shown as "Nationwide". Vote totals exist only for the ballot-backed cycles (2016 on); earlier ones show an em dash. See <a href="#issues" class="underline">Data quality</a>.</p>
     </div>
 
     <div class="grid lg:grid-cols-5 gap-8 mb-12">
@@ -528,7 +527,7 @@
     <div class="card p-6">
       <ul class="text-lg text-[var(--ink-soft)] leading-relaxed list-disc pl-5 space-y-3">
         <li><strong style="color:var(--ink);">No vote counts before 2016.</strong> 2013 has no recoverable municipality-level source, and 2010 survives only as winners-only PDFs covering 83% of towns.</li>
-        <li><strong style="color:var(--ink);">Overseas votes are not counted.</strong> Every total sums only the localities inside the Philippines, so nationwide races run a little under COMELEC's official canvass. Local races are unaffected.</li>
+        <li><strong style="color:var(--ink);">Overseas votes are counted, not mapped.</strong> They are included in the nationwide totals but have no locality to place on the map. They exist in the data for 2022 only; the other cycles cover domestic localities, so their nationwide totals run slightly under COMELEC's official canvass. Local races are unaffected.</li>
         <li><strong style="color:var(--ink);">Middle names are incompletely recorded.</strong> The middle name is a maiden name, so the marriage and maternal links in the dynasty map are strong where it is present and largely missing where it is not.</li>
         <li><strong style="color:var(--ink);">Four map outlines are slightly off.</strong> The eight BARMM Special Geographic Area municipalities are drawn from their 2020 interim boundaries, so four of them are one barangay out. Their vote totals are unaffected.</li>
       </ul>
@@ -1149,7 +1148,7 @@ function animateTally(row){
 document.querySelectorAll(".tally-row").forEach(animateTally);
 
 // ---------- The whole dataset, loaded from explore.json ----------
-// 139,744 winners across 8 cycles. The payload dictionary-encodes position/region/
+// 139,843 winners across 8 cycles. The payload dictionary-encodes position/region/
 // province/party and ships rows as arrays, which takes ~12 MB of CSV down to 1.8 MB
 // gzipped. Rows are rendered a page at a time - 139k <tr> elements would lock the tab.
 const PAGE = 100;
