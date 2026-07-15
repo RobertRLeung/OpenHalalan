@@ -47,6 +47,7 @@ live in `NLE_Vote_Counts_2016-2025.csv.gz`.
 | `Party` | string | Canonical party code. Spellings of the same party are unified across cycles; real mergers are **not** — see below. |
 | `Year` | int | Election year. |
 | `Province` | string | Canonical province or NCR district. Stable across cycles. |
+| `City` | string | Canonical city / municipality, matching `city` in the vote-counts dataset. Present only for the **municipal** offices (mayor, vice mayor, councilor) and only from **2016** on: the office has to be municipal to have a city, and the city has to come off a ballot the project scraped. Blank for provincial and district offices (a governor has no city), and blank for every 2004–2013 row, which predates any ballot-level source. About 47% filled overall. |
 | `Region` | string | Canonical region. Never null. |
 
 No vote totals here — this records *who won*. For votes, use the vote-counts dataset.

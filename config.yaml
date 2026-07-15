@@ -53,6 +53,7 @@ datasets:
     - Party
     - Year
     - Province
+    - City
     - Region
 
   # Columns dropped from the source file. These are ANALYSIS ARTEFACTS from a prior

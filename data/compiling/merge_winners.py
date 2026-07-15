@@ -67,6 +67,10 @@ def to_winners_schema(df, year):
             "Party": df["party"].values,
             "Year": year,
             "Province": df["province"].values,
+            # City exists for the ballot-derived cycles because it comes off the ballots.
+            # It is legitimately blank for province/district offices (a governor has no
+            # city), which is why the column is ~93% filled rather than 100%.
+            "City": df["city"].values,
             "Region": df["region"].values,
         }
     )[WINNERS_COLUMNS]
@@ -90,6 +94,9 @@ def canonicalise_inherited(df):
     df["Middle Name"] = [n[2] for n in names]
     df["Title"] = [n[3] for n in names]
     df["Full Name"] = [canonical_full_name(n[0], n[1], n[2]) for n in names]
+    # The inherited cycles (2004-2013) predate any ballot-level source, so they carry no
+    # city at all - the finest place they record is the province. City stays blank for them.
+    df["City"] = pd.NA
     return df[WINNERS_COLUMNS]
 
 
@@ -118,7 +125,7 @@ def main():
     # --- clean up -----------------------------------------------------------
     print("\nnormalising:")
     before_provinces = merged["Province"].nunique()
-    merged = normalize_places(merged)
+    merged = normalize_places(merged, city="City")
     print(f"  provinces: {before_provinces} distinct -> "
           f"{merged['Province'].nunique()} after canonical naming")
 
