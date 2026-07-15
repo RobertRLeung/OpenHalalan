@@ -8,43 +8,52 @@ Depends on data/site/map_geo.json (for the PSGC codes and the province->region m
 build_map_geo.py first. Reuses the geometry's codes so the Dynasties map can draw on exactly
 the same boundaries as the results map.
 
-What a "dynasty" is here
-------------------------
-Two winners are treated as the same political family when they share a surname within one
-region. That is it, for this proof of concept. It is surname matching, so it is not kinship:
-two unrelated CRUZ families in one region read as one, and the map says so.
+What counts as dynastic here
+----------------------------
+A seat is dynastic when ANOTHER person in the same unit shares one of its name tokens - a
+surname OR a middle name. That one test captures the three ways kinship shows in a Filipino
+name:
 
-Marriage linking - joining families through the maiden name a married woman carries as her
-MIDDLE name - was tried and pulled. Chained through a union-find it merged unrelated families
-into region-sized blobs and pushed the dynastic rate past 80%, and post-2016 the middle name
-is filled on barely one row in eight, so it cannot be applied evenly. It belongs in a later
-version, as an edge between families rather than a merge of them.
+  last-last     two siblings share a surname.
+  last-middle   a married woman carries her maiden name as her middle, so her middle IS her
+                birth family's surname - the link a surname-only pass misses, and the reason
+                it undercounts families joined through their daughters.
+  middle-middle two people share a mother's maiden name as a middle, even where the surname
+                differs. This is what a surname pass misses in Mountain Province, whose
+                dynasties run through maternal lines - and what a study of the same data found.
+
+The test is PAIRWISE - "does anyone here share a token with me" - and pointedly NOT a
+union-find. Chaining shared tokens transitively (A-B by a middle, B-C by a surname, ...)
+walks a common maternal name straight across a province and swallows half of it into one
+400-person "family". Pairwise cannot chain: two people who share one token are each counted,
+but nothing declares them one family. Two unrelated Santos in a town still read as related -
+that is the surname-coincidence floor - but the noise stays local, tightest where you zoom
+closest.
+
+The rate and the panel part ways on purpose. The RATE, above, is a shaded number and can
+afford the loose pairwise net. The detail PANEL prints real people's names, so it groups them
+the one plain, defensible way - a shared SURNAME - and never asserts a marriage or maternal
+tie it cannot show. So a locality's shaded rate can be a little higher than the surname
+families the panel lists add up to; the gap is the marriage and maternal links, counted but
+not named.
 
 Thin vs fat, the two shapes of a dynasty
 ----------------------------------------
-  THIN  (sunud-sunod, one after another) - the family holds a seat in a jurisdiction across
-        DIFFERENT years. Brother A is mayor, then brother B succeeds him. Succession.
-  FAT   (sabay-sabay, side by side)       - the family holds two seats in the SAME
-        jurisdiction in the SAME year. Brother A mayor, brother B vice mayor. Co-occupation.
+  THIN  (sunud-sunod, one after another) - the family holds a seat in a unit across DIFFERENT
+        years. Brother A is mayor, then brother B succeeds him. Succession.
+  FAT   (sabay-sabay, side by side)       - the family holds two seats in the SAME unit in the
+        SAME year. Brother A mayor, brother B vice mayor. Co-occupation.
 
-A winner is dynastic-thin (or -fat) in a unit if ANOTHER member of their family also held a
-seat in that unit, in a different year (thin) or the same year (fat). Re-election of the same
-person is neither - that is incumbency, not a dynasty, and it is excluded by identity.
+A winner is dynastic-thin (or -fat) if ANOTHER member of their family also held a seat in the
+unit, in a different year (thin) or the same year (fat). Re-election of the same person is
+neither - that is incumbency, not a dynasty, and it is excluded by identity.
 
-Three zoom levels, because the map has three
---------------------------------------------
-The reading is computed at every level the map can show, and the family co-occupation test is
-scoped to the unit in view - so the surname noise is tightest where you look closest:
-
-  municipality  the family holds seats in the same TOWN. Clean - two same-surname winners in
-                one small town are almost certainly kin.
-  province      the family holds seats anywhere in the PROVINCE. Looser: two same-surname
-                mayors of different towns count, related or not.
-  region        the whole region. Looser still.
-
-2016-2025 only, so every winner carries a city and all three levels span the same four cycles
-as the results map. Extending back to 2004 needs town-level winners for the older cycles,
-which do not exist yet (the ListElected scrape). See FIRST_YEAR.
+Three zoom levels, and how far back each reaches
+------------------------------------------------
+  municipality  the family holds seats in the same TOWN. Cleanest. City is only in the data
+                from 2016, so this level is 2016-2025.
+  province      the family holds seats anywhere in the PROVINCE. 2004-2025.
+  region        the whole region. 2004-2025. Loosest - the widest net for a common name.
 
 Output
 ------
@@ -94,12 +103,8 @@ CITY_ALIAS = {
 }
 
 MUNICIPAL = {"MAYOR", "VICE MAYOR", "COUNCILOR"}
+_EMPTY = frozenset()
 
-# Proof of concept: 2016 on, so all three zoom levels span the same four cycles as the
-# results map, and every municipal winner carries a city. Extending back to 2004 needs
-# town-level winners for the older cycles, which do not exist yet - see the ListElected
-# scrape. When it lands, drop this and the map gains four more cycles at province/region.
-FIRST_YEAR = 2016
 
 # Clans shipped per unit in the detail payload, and members per clan. A cap, not a filter of
 # the rates - the numbers count everyone; only the panel list is bounded.
@@ -128,6 +133,48 @@ def city_key(s):
 
 def pretty(position):
     return str(position).title().replace("Of", "of").replace("Vice-", "Vice ")
+
+
+def _clan_detail(g):
+    """The families of one unit, for the panel. Grouped by SURNAME only - not by the wider
+    token match the rate uses. The rate can afford to be loose because it is just a shaded
+    number; the panel prints real people's names, so it groups them the one way that is plain
+    and defensible - a shared surname - and asserts no marriage or maternal tie it cannot
+    show. Its thin/fat flags are the surname family's OWN co-occurrence, so the label always
+    matches the people shown beneath it."""
+    import collections as _c
+    rows_by_surname = _c.defaultdict(list)
+    for r in g.itertuples():
+        rows_by_surname[r.surname].append(r)
+
+    fams = []
+    for surname, rows in rows_by_surname.items():
+        persons = {r.person for r in rows}
+        if len(persons) < 2:
+            continue
+        seats = {(r.person, int(r.Year)) for r in rows}
+        fat = any(a != b and ya == yb for (a, ya) in seats for (b, yb) in seats)
+        thin = any(a != b and ya != yb for (a, ya) in seats for (b, yb) in seats)
+        members = {}
+        for r in rows:
+            members.setdefault(r.person, {"name": r.full, "seats": set()})
+            members[r.person]["seats"].add((int(r.Year), pretty(r.Position)))
+        member_list = sorted(
+            ({"name": m["name"], "seats": sorted(m["seats"], reverse=True)}
+             for m in members.values()),
+            key=lambda m: (-len(m["seats"]), m["name"]))
+        fams.append({
+            "name": surname.title(),
+            "people": len(persons),
+            "seats": len(rows),
+            "fat": fat,
+            "thin": thin,
+            "members": [{"name": m["name"], "seats": [[y, o] for y, o in m["seats"]]}
+                        for m in member_list[:TOP_MEMBERS]],
+            "more": max(0, len(member_list) - TOP_MEMBERS),
+        })
+    fams.sort(key=lambda f: (-f["seats"], -f["people"]))
+    return fams
 
 
 
@@ -173,12 +220,11 @@ def main():
     # ---------------------------------------------------------------- load & map
     say("reading the winners ...")
     w = pd.read_csv(WINNERS_CSV, low_memory=False)
-    w = w[w.Year >= FIRST_YEAR]
     w = w[w["Last Name"].notna() & w["First Name"].notna()].copy()
 
     w["surname"] = w["Last Name"].map(fold)
     w["given"] = w["First Name"].map(fold).str.split().str[0].fillna("")
-    w["middle"] = w["Middle Name"].map(fold).str.split().str[0].fillna("")
+    w["middle"] = w["Middle Name"].map(fold)          # whole middle name, so DELA CRUZ stays one token
     w = w[(w.surname != "") & (w.given != "")]
 
     w["prov_code"] = w["Province"].map(province_psgc)
@@ -196,107 +242,98 @@ def main():
     say(f"  {len(w):,} winner-rows mapped to PSGC; municipal rows with a city: "
         f"{have_city:.0f}% (0% before 2016 by construction)")
 
-    # ---------------------------------------------------------------- families
-    # A person is identified within their region, so the same name in two regions is two
-    # people. A family is a surname within a region - nothing more for this proof of concept.
-    #
-    # Marriage linking (a maiden name carried as a middle name) is deliberately NOT done here.
-    # Chaining it through a union-find merged unrelated families into region-sized blobs and
-    # pushed the dynastic rate past 80%, and post-2016 the middle name is filled on barely one
-    # row in eight, so it cannot be done evenly. It belongs in a later version, as an edge
-    # between clans rather than a merge of them.
-    w["person"] = w.region_code + "|" + w.surname + "|" + w.given
-    w["clan"] = w.region_code + "|" + w.surname
-    say(f"  families: {w.clan.nunique():,} surname-clans across {w.region_code.nunique()} regions")
-
     # ---------------------------------------------------------------- the reading
+    # A person is one (region, surname, first name), so the same name in two regions is two
+    # people and a person re-elected across years is still one.
+    w["person"] = w.region_code + "|" + w.surname + "|" + w.given
+    w["full"] = w["Full Name"]              # itertuples renames "Full Name"; this stays r.full
+
+    # A seat is dynastic when ANOTHER person in the same unit shares one of its NAME TOKENS.
+    # The reader can pick WHICH tokens count, so the reading is computed three ways:
+    #
+    #   last    share a SURNAME only (last-last). Siblings, a parent and child.
+    #   middle  a MIDDLE name is on one side (last-middle or middle-middle): a married woman
+    #           whose maiden name IS her middle, or two people sharing a mother's maiden name.
+    #           This is the link a surname pass cannot see - and the reason Mountain Province,
+    #           dynastic through maternal lines, looks empty without it.
+    #   all     either of the above. The default.
+    #
+    # The test is PAIRWISE - "does someone here share a qualifying token with me" - and
+    # pointedly NOT a union-find. Chaining tokens transitively (A-B by a middle, B-C by a
+    # surname, ...) walks a common maternal name across a province and merges half of it into
+    # one 400-person "family". Pairwise cannot chain: two people who share one token are each
+    # counted, but nothing declares them one family.
+    MATCHES = ("last", "middle", "all")
     LEVELS = {"region": "region_code", "province": "prov_code", "municipality": "city_code"}
     rates = {lvl: collections.defaultdict(dict) for lvl in LEVELS}
-    fat_flag = {lvl: set() for lvl in LEVELS}
-    thin_flag = {lvl: set() for lvl in LEVELS}
+    # fat_flag[lvl][match] / thin_flag[lvl][match] -> set of row indexes
+    fat_flag = {lvl: {m: set() for m in MATCHES} for lvl in LEVELS}
+    thin_flag = {lvl: {m: set() for m in MATCHES} for lvl in LEVELS}
+    detail = {"province": {}, "municipality": {}}
+
+    def scan(buckets, p, y):
+        """Given the (year -> persons) dicts a seat could be related through, is there another
+        person in the same year (fat) and/or another year (thin)?"""
+        fat = thin = False
+        for by_year in buckets:
+            if by_year is None:
+                continue
+            if by_year.get(y, _EMPTY) - {p}:
+                fat = True
+            if any(yy != y and (ps - {p}) for yy, ps in by_year.items()):
+                thin = True
+        return fat, thin
 
     for lvl, col in LEVELS.items():
         sub = w[w[col].notna()]
-
-        # FAT is a pure count: a seat is fat when its (unit, clan, year) holds two or more
-        # DISTINCT people. That is a groupby transform, no Python loop.
-        n_people_ucy = sub.groupby([col, "clan", "Year"]).person.transform("nunique")
-        fat_flag[lvl] = set(sub.index[n_people_ucy >= 2])
-
-        # THIN needs another family member in a DIFFERENT year, so it is scoped per
-        # (unit, clan). The groups are tiny, so the set work below is cheap - and it is set
-        # work, not iterrows, which is what made the first cut take minutes.
-        for (unit, clan), g in sub.groupby([col, "clan"]):
-            if g.person.nunique() < 2:
-                continue                     # a lone name is not a dynasty
-            years = g.Year.values
-            persons = g.person.values
-            by_year = collections.defaultdict(set)
-            for pr, yr in zip(persons, years):
-                by_year[yr].add(pr)
-            # people active in each year, so "elsewhere" = everyone minus this year's set...
-            for idx, pr, yr in zip(g.index, persons, years):
-                # another person, in some other year
-                if any(yy != yr and (ps - {pr}) for yy, ps in by_year.items()):
-                    thin_flag[lvl].add(idx)
-
-        both_set = fat_flag[lvl] | thin_flag[lvl]
-        for (unit, year), g in sub.groupby([col, "Year"]):
-            fat = g.index.isin(fat_flag[lvl]).sum()
-            thin = g.index.isin(thin_flag[lvl]).sum()
-            both = g.index.isin(both_set).sum()
-            rates[lvl][unit][int(year)] = [int(both), int(fat), int(thin), len(g)]
-
-        counts = [rates[lvl][u][y] for u in rates[lvl] for y in rates[lvl][u]]
-        tot = sum(c[3] for c in counts)
-        dyn = sum(c[0] for c in counts)
-        say(f"  {lvl:<13}: {len(rates[lvl]):>4} units, "
-            f"{dyn/tot*100:.1f}% of seats dynastic overall")
-
-    # ---------------------------------------------------------------- clan detail
-    w["is_fat_prov"] = w.index.isin(fat_flag["province"])
-    w["is_thin_prov"] = w.index.isin(thin_flag["province"])
-    w["is_fat_muni"] = w.index.isin(fat_flag["municipality"])
-    w["is_thin_muni"] = w.index.isin(thin_flag["municipality"])
-
-    def clans_for(col, fatset, thinset):
-        out = {}
-        sub = w[w[col].notna()]
         for unit, g in sub.groupby(col):
-            fams = []
-            for clan, cg in g.groupby("clan"):
-                if cg.person.nunique() < 2:
-                    continue
-                members = []
-                for person, pg in cg.groupby("person"):
-                    seats = sorted({(int(r.Year), pretty(r.Position)) for r in pg.itertuples()},
-                                   reverse=True)
-                    name = pg.iloc[0]["Full Name"]
-                    members.append({"name": name,
-                                    "seats": [[y, o] for y, o in seats]})
-                members.sort(key=lambda m: (-len(m["seats"]), m["name"]))
-                fams.append({
-                    "name": cg.iloc[0]["surname"].title(),
-                    "people": cg.person.nunique(),
-                    "seats": len(cg),
-                    "fat": bool(cg.index.isin(fatset).any()),
-                    "thin": bool(cg.index.isin(thinset).any()),
-                    "members": members[:TOP_MEMBERS],
-                    "more": max(0, len(members) - TOP_MEMBERS),
-                })
-            fams.sort(key=lambda f: (-f["seats"], -f["people"]))
-            if fams:
-                out[unit] = fams[:TOP_CLANS]
-        return out
+            surname_year = collections.defaultdict(lambda: collections.defaultdict(set))
+            middle_year = collections.defaultdict(lambda: collections.defaultdict(set))
+            for r in g.itertuples():
+                surname_year[r.surname][r.Year].add(r.person)
+                if r.middle:
+                    middle_year[r.middle][r.Year].add(r.person)
 
-    clans = {
-        "province": clans_for("prov_code", fat_flag["province"], thin_flag["province"]),
-        "municipality": clans_for("city_code", fat_flag["municipality"], thin_flag["municipality"]),
-    }
+            for r in g.itertuples():
+                p, y, sn, mid = r.person, r.Year, r.surname, r.middle
+                last_b = [surname_year.get(sn)]                       # their surname == mine
+                mid_b = [middle_year.get(sn)]                         # their middle == my surname
+                if mid:
+                    mid_b += [surname_year.get(mid),                  # their surname == my middle
+                              middle_year.get(mid)]                   # their middle == my middle
+                for m, buckets in (("last", last_b), ("middle", mid_b), ("all", last_b + mid_b)):
+                    fat, thin = scan(buckets, p, y)
+                    if fat:
+                        fat_flag[lvl][m].add(r.Index)
+                    if thin:
+                        thin_flag[lvl][m].add(r.Index)
+
+            if lvl in detail:
+                detail[lvl][unit] = _clan_detail(g)
+
+        # per (unit, year): total, then [both, fat, thin] for each of last / middle / all.
+        for (unit, year), g in sub.groupby([col, "Year"]):
+            row = [len(g)]
+            for m in MATCHES:
+                fat, thin = fat_flag[lvl][m], thin_flag[lvl][m]
+                row += [int(g.index.isin(fat | thin).sum()),
+                        int(g.index.isin(fat).sum()), int(g.index.isin(thin).sum())]
+            rates[lvl][unit][int(year)] = row
+        tot = sum(r[0] for u in rates[lvl] for r in rates[lvl][u].values())
+        dyn = sum(r[7] for u in rates[lvl] for r in rates[lvl][u].values())   # "all" both
+        say(f"  {lvl:<13}: {len(rates[lvl]):>4} units, {dyn/tot*100:.1f}% dynastic (both, all-match)")
+
+    clans = {lvl: {u: fams[:TOP_CLANS] for u, fams in units.items() if fams}
+             for lvl, units in detail.items()}
 
     # ---------------------------------------------------------------- write
     RATES.write_text(json.dumps({
         "levels": list(LEVELS),
+        "matches": list(MATCHES),
+        # each unit-year row is: [total, then (both, fat, thin) for last, middle, all].
+        # Index of a (match, relation) numerator: 1 + 3*matchIdx + relIdx, where rel both=0
+        # fat=1 thin=2. The map divides that by row[0].
+        "fields": "total,l_both,l_fat,l_thin,m_both,m_fat,m_thin,a_both,a_fat,a_thin",
         "regionNames": region_name,
         "rates": {lvl: dict(rates[lvl]) for lvl in LEVELS},
     }, separators=(",", ":")), encoding="utf-8")
