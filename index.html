@@ -1758,12 +1758,7 @@ function dDetailFor(level, unit, name, provOfUnit, highlight){
   const tag = f =>
     (f.thin ? `<span class="pct-tab text-[10px] px-1.5 py-0.5 rounded-sm" style="border:1px solid var(--line)">thin</span>` : "")
   + (f.fat  ? ` <span class="pct-tab text-[10px] px-1.5 py-0.5 rounded-sm" style="border:1px solid var(--stamp);color:var(--stamp)">fat</span>` : "");
-
-  dDetail.innerHTML = `
-    <p class="font-display font-semibold text-lg leading-tight">${name}</p>
-    <p class="text-xs text-[var(--ink-soft)] mb-1">${parent}</p>
-    <p class="font-mono text-xs text-[var(--ink-soft)] mb-4">${dPct(v)} of seats family-held · ${fams.length} ${fams.length===1?"family":"families"} shown</p>
-    <ul class="space-y-4">${fams.map(f => `
+  const famLi = f => `
       <li data-fam="${f.name}">
         <div class="flex items-baseline justify-between gap-2">
           <span class="font-display font-semibold">${f.name}</span>
@@ -1775,15 +1770,37 @@ function dDetailFor(level, unit, name, provOfUnit, highlight){
             m.seats.map(([y, o]) => `${o} ’${String(y).slice(2)}`).join(", ")}</li>`).join("")}
           ${f.more ? `<li class="italic">+ ${f.more} more</li>` : ""}
         </ul>
-      </li>`).join("")}</ul>
+      </li>`;
+
+  const HEAD = 5;
+  const head = fams.slice(0, HEAD), rest = fams.slice(HEAD);
+  dDetail.innerHTML = `
+    <p class="font-display font-semibold text-lg leading-tight">${name}</p>
+    <p class="text-xs text-[var(--ink-soft)] mb-1">${parent}</p>
+    <p class="font-mono text-xs text-[var(--ink-soft)] mb-4">${dPct(v)} of seats family-held · ${fams.length} ${fams.length===1?"family":"families"}</p>
+    <ul class="space-y-4">${head.map(famLi).join("")}</ul>
+    ${rest.length ? `
+      <ul id="dyn-fam-rest" class="space-y-4 mt-4 hidden">${rest.map(famLi).join("")}</ul>
+      <button id="dyn-fam-more" class="btn-ghost font-mono text-xs px-3 py-2 rounded-sm mt-4">
+        See ${rest.length} more ${rest.length === 1 ? "family" : "families"}</button>` : ""}
     <p class="text-[10px] text-[var(--ink-soft)] mt-5 pt-3 border-t hairline leading-snug">
       Grouped by shared surname. Common surnames are unavoidable, so a shared name need not
       mean a family tie; name matching can be inaccurate, and appearing here is no attribution
       of wrongdoing.
     </p>`;
 
+  const moreBtn = document.getElementById("dyn-fam-more");
+  if(moreBtn) moreBtn.addEventListener("click", () => {
+    document.getElementById("dyn-fam-rest").classList.remove("hidden");
+    moreBtn.remove();
+  });
+
   if(highlight) dDetail.querySelectorAll("li[data-fam]").forEach(li => {
-    if(li.dataset.fam === highlight){ li.classList.add("fam-hi"); li.scrollIntoView({block: "nearest"}); }
+    if(li.dataset.fam === highlight){
+      const hidden = li.closest("#dyn-fam-rest");    // reveal the matched clan if collapsed
+      if(hidden){ hidden.classList.remove("hidden"); const mb = document.getElementById("dyn-fam-more"); if(mb) mb.remove(); }
+      li.classList.add("fam-hi"); li.scrollIntoView({block: "nearest"});
+    }
   });
 }
 
