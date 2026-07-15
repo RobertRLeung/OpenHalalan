@@ -481,13 +481,13 @@
 
     <div class="grid lg:grid-cols-5 gap-8 mb-12">
       <div class="lg:col-span-3 card p-6">
-        <h3 class="font-display font-semibold text-lg mb-1">Winning-party affiliation, top 5 by total wins</h3>
-        <p class="text-xs text-[var(--ink-soft)] mb-4">LAKAS-CMD's near-total 2010 collapse and PDP-Laban's 2016–2022 spike, both real.</p>
+        <h3 class="font-display font-semibold text-lg mb-1" id="chart-share-title">Winning-party affiliation</h3>
+        <p class="text-xs text-[var(--ink-soft)] mb-4">Top five parties by seats won, across the eight cycles. Follows the filters above (year aside).</p>
         <canvas id="chart-share" height="220"></canvas>
       </div>
       <div class="lg:col-span-2 card p-6">
-        <h3 class="font-display font-semibold text-lg mb-1">Independent-candidate win share</h3>
-        <p class="text-xs text-[var(--ink-soft)] mb-4">Share of all winning seats with no party affiliation, by cycle.</p>
+        <h3 class="font-display font-semibold text-lg mb-1" id="chart-hop-title">Independent win share</h3>
+        <p class="text-xs text-[var(--ink-soft)] mb-4">Share of winning seats with no party affiliation, by cycle.</p>
         <canvas id="chart-hop" height="220"></canvas>
       </div>
     </div>
@@ -1282,6 +1282,7 @@ function applyFilters(){
   );
   if(sortKey) sortRows();
   renderRows(true);
+  updateCharts();
 }
 
 document.querySelectorAll("#results-table th").forEach(th => {
@@ -1315,69 +1316,109 @@ fetch("explore.json")
       Could not load explore.json.</td></tr>`;
   });
 
-const YEARS = [2004,2007,2010,2013,2016,2019,2022,2025];
-// Winning-candidate counts by party, top 5 parties by total wins across all 8 cycles
-const PARTY_SERIES = {
-  "LP":        [1397,1116,2529,6282,7294, 662, 420, 248],
-  "NPC":       [2526,1720,1394,2244,2079,1863,1860,1797],
-  "LAKAS-CMD": [7329,6086,   0,   0,   0,   0,   0,   0],
-  "NP":        [   9, 161,2582,1722,1370,2636,2551,2031],
-  "PDPLBN":    [ 107, 164,  54,  17,   0,5695,3897, 147],
-};
-const IND_SHARE = [10.6,7.7,11.3,12.2,12.8,10.5,9.3,9.4]; // % of winners with no party
-
-// ---------- Charts ----------
-const inkSoft = "#999999";
+// ---------- Charts (filter-aware) ----------
+// The two charts are recomputed from whatever slice the filters describe - the same
+// position/region/province the table shows, but ALWAYS across all eight cycles, because
+// they are time series (the year filter narrows the table, not the trend). Filter to Cebu
+// and they become Cebu's party trend and independent share.
 Chart.defaults.font.family = "'IBM Plex Mono', monospace";
-Chart.defaults.color = inkSoft;
+Chart.defaults.color = "#999999";
 
-const PARTY_COLORS = {
-  "LP": "#3FA9BC", "NPC": "#F0F0F0", "LAKAS-CMD": "#C2404A",
-  "NP": "#5B8C63", "PDPLBN": "#D4A373",
+const CHART_YEARS = [2004, 2007, 2010, 2013, 2016, 2019, 2022, 2025];
+// The big parties keep a fixed colour across filters, so a party does not change hue when
+// the top five reshuffle; the rest fall back to a slot palette by rank.
+const PARTY_FIXED = {
+  "LP": "#3FA9BC", "NPC": "#D4A373", "NP": "#5B8C63", "PDPLBN": "#9085E9",
+  "LAKAS-CMD": "#C2404A", "PFP": "#E0A3A8", "NUP": "#C98500", "LAKAS": "#7FB0D8",
 };
-new Chart(document.getElementById("chart-share"), {
-  type: "line",
-  data: {
-    labels: YEARS,
-    datasets: Object.entries(PARTY_SERIES).map(([party, data]) => ({
-      label: party,
-      data,
-      borderColor: PARTY_COLORS[party],
-      backgroundColor: PARTY_COLORS[party],
-      tension: 0.3,
-      pointRadius: 3,
-      borderWidth: 2,
-    }))
-  },
-  options: {
-    plugins: { legend: { position:"bottom", labels:{ boxWidth:10, font:{size:10} } } },
-    scales: {
-      y: { grid:{ color:"rgba(240,240,240,0.14)" }, title:{ display:true, text:"seats won" } },
-      x: { grid:{ display:false } }
-    }
-  }
-});
+const PARTY_PALETTE = ["#3FA9BC", "#D4A373", "#5B8C63", "#9085E9", "#C98500"];
+let chartShare = null, chartHop = null, IND_IDX = null;
 
-new Chart(document.getElementById("chart-hop"), {
-  type: "bar",
-  data: {
-    labels: YEARS,
-    datasets: [{
-      label: "% independent winners",
-      data: IND_SHARE,
-      backgroundColor: "#3E5641",
-      borderRadius: 2,
-      maxBarThickness: 28,
-    }]
-  },
-  options: {
-    plugins: { legend: { display:false } },
-    scales: {
-      y: { grid:{ color:"rgba(240,240,240,0.14)" }, ticks:{ callback:v=>v+"%" } },
-      x: { grid:{ display:false } }
-    }
+function chartSlice(){
+  const p = selPosition.value, g = selRegion.value, v = selProvince.value;
+  return DATA.rows.filter(r =>
+    (p === "all" || DATA.positions[r[POS]] === p) &&
+    (g === "all" || DATA.regions[r[REG]]     === g) &&
+    (v === "all" || DATA.provinces[r[PROV]]  === v));
+}
+
+function chartScope(){
+  const bits = [];
+  if(selProvince.value !== "all") bits.push(selProvince.value);
+  else if(selRegion.value !== "all") bits.push(selRegion.value);
+  if(selPosition.value !== "all") bits.push(selPosition.value);
+  return bits.length ? bits.join(" · ") : "nationwide";
+}
+
+function updateCharts(){
+  if(!DATA) return;
+  if(IND_IDX === null) IND_IDX = DATA.parties.indexOf("IND");
+  const yi = Object.fromEntries(CHART_YEARS.map((y, i) => [y, i]));
+  const byParty = new Map();
+  const totalYr = Array(CHART_YEARS.length).fill(0);
+  const indYr = Array(CHART_YEARS.length).fill(0);
+
+  for(const r of chartSlice()){
+    const i = yi[r[YEAR]];
+    if(i === undefined) continue;
+    totalYr[i]++;
+    if(r[PARTY] === IND_IDX) indYr[i]++;
+    if(r[PARTY] < 0) continue;
+    const name = DATA.parties[r[PARTY]];
+    if(!byParty.has(name)) byParty.set(name, Array(CHART_YEARS.length).fill(0));
+    byParty.get(name)[i]++;
   }
-});
+  const top = [...byParty.entries()]
+    .map(([party, arr]) => ({party, arr, total: arr.reduce((a, b) => a + b, 0)}))
+    .sort((a, b) => b.total - a.total).slice(0, 5);
+
+  document.getElementById("chart-share-title").textContent = "Winning-party affiliation — " + chartScope();
+  document.getElementById("chart-hop-title").textContent = "Independent win share — " + chartScope();
+
+  const shareData = {
+    labels: CHART_YEARS,
+    datasets: top.map((t, i) => ({
+      label: t.party, data: t.arr,
+      borderColor: PARTY_FIXED[t.party] || PARTY_PALETTE[i],
+      backgroundColor: PARTY_FIXED[t.party] || PARTY_PALETTE[i],
+      tension: 0.3, pointRadius: 3, borderWidth: 2, spanGaps: true,
+    })),
+  };
+  const indData = {
+    labels: CHART_YEARS,
+    datasets: [{
+      label: "% independent",
+      data: CHART_YEARS.map((y, i) => totalYr[i] ? +(100 * indYr[i] / totalYr[i]).toFixed(1) : null),
+      backgroundColor: "#3E5641", borderRadius: 2, maxBarThickness: 28,
+    }],
+  };
+
+  if(chartShare){ chartShare.data = shareData; chartShare.update(); }
+  else chartShare = new Chart(document.getElementById("chart-share"), {
+    type: "line", data: shareData,
+    options: {
+      animation: false,
+      plugins: { legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 10 } } } },
+      scales: {
+        y: { grid: { color: "rgba(240,240,240,0.14)" }, title: { display: true, text: "seats won" } },
+        x: { grid: { display: false } },
+      },
+    },
+  });
+
+  if(chartHop){ chartHop.data = indData; chartHop.update(); }
+  else chartHop = new Chart(document.getElementById("chart-hop"), {
+    type: "bar", data: indData,
+    options: {
+      animation: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { grid: { color: "rgba(240,240,240,0.14)" }, ticks: { callback: v => v + "%" } },
+        x: { grid: { display: false } },
+      },
+    },
+  });
+}
 
 // ============================================================================
 // THE DYNASTY MAP
