@@ -1164,7 +1164,7 @@ document.querySelectorAll(".tally-row").forEach(animateTally);
 // 139,843 winners across 8 cycles. The payload dictionary-encodes position/region/
 // province/party and ships rows as arrays, which takes ~12 MB of CSV down to 1.8 MB
 // gzipped. Rows are rendered a page at a time - 139k <tr> elements would lock the tab.
-const PAGE = 100;
+const PAGE = 25;
 
 let DATA = null;                    // {positions, regions, provinces, parties, rows}
 let currentRows = [];
@@ -1174,6 +1174,7 @@ let sortKey = null, sortAsc = true;
 const tbody      = document.getElementById("results-tbody");
 const countEl    = document.getElementById("results-count");
 const loadMoreEl = document.getElementById("load-more");
+loadMoreEl.textContent = `Show ${PAGE} more`;   // keep the label in step with the page size
 const selYear     = document.getElementById("filter-year");
 const selPosition = document.getElementById("filter-position");
 const selRegion   = document.getElementById("filter-region");
