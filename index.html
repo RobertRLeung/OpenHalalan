@@ -341,9 +341,12 @@
     </div>
 
     <p class="mt-4 font-mono text-xs text-[var(--ink-soft)] max-w-3xl leading-relaxed">
-      Dynastic measures here describe surname and middle-name co-occurrence in office, from the
-      best available data. Name matching can be inaccurate and a shared name need not mean
-      kinship; <strong style="color:var(--ink)">no attribution of wrongdoing is intended</strong>.
+      Dynastic measures describe surname and middle-name co-occurrence in office. Many
+      Filipino surnames are common — two unrelated Cruz families read as one — so this
+      cannot separate a coincidental shared name from real kinship. It defaults to
+      surname-only, the more conservative reading; the toggle folds in middle-name (marriage
+      and maternal) links. Name matching can be inaccurate;
+      <strong style="color:var(--ink)">no attribution of wrongdoing is intended</strong>.
       Towns are 2016–2025, provinces and regions 2004–2025;
       see <a href="#issues" class="underline">Data quality</a>.
     </p>
@@ -1378,7 +1381,8 @@ new Chart(document.getElementById("chart-hop"), {
 // ============================================================================
 const DYN = {
   loaded: false, rates: null, clans: null,
-  year: 2022, mode: "both", match: "all",   // relation (both/fat/thin) x match (last/middle/all)
+  year: 2022, mode: "both", match: "last",   // relation (both/fat/thin) x match (last/middle/all)
+                                             // default surname-only: the conservative reading
   region: null, prov: null,           // scope; null,null = provinces of the whole country
   byUnit: null,                       // unitPSGC -> rate row for current year/level
 };
@@ -1665,8 +1669,9 @@ function dDetailFor(level, unit, name, provOfUnit){
         </ul>
       </li>`).join("")}</ul>
     <p class="text-[10px] text-[var(--ink-soft)] mt-5 pt-3 border-t hairline leading-snug">
-      Grouped by shared surname or middle name. Name matching can be inaccurate; a shared
-      name need not mean a family tie, and appearing here is no attribution of wrongdoing.
+      Grouped by shared surname. Common surnames are unavoidable, so a shared name need not
+      mean a family tie; name matching can be inaccurate, and appearing here is no attribution
+      of wrongdoing.
     </p>`;
 }
 
