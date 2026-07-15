@@ -135,6 +135,59 @@ def pretty(position):
     return str(position).title().replace("Of", "of").replace("Vice-", "Vice ")
 
 
+def resolve_given(w):
+    """Collapse one person recorded under different given-name spellings (GWEN / GWENDOLYN)
+    into a single identity, so a split record is never mistaken for two family members and
+    never fabricates a dynastic pair. Within one (region, surname), two givens are merged
+    only when ALL hold: one is a prefix of the other (>= 4 chars, and the extra part is not a
+    JR/SR/II generational suffix), they never won in the SAME year (co-occurrence means two
+    people), and their middle names do not conflict. Deliberately conservative: it fixes the
+    clear short-form/full-name splits and leaves semantic cases it cannot prove (Imee = Maria
+    Imelda) alone rather than risk merging distinct relatives."""
+    GEN = {"JR", "SR", "II", "III", "IV", "V"}
+    # Middle names are compared as TOKEN SETS, not whole strings: "FIEL", "JOHN FIEL" and
+    # "G FIEL" are the one middle (Fiel) recorded with extra names or an initial, so any
+    # shared token counts as agreement. Single letters are dropped as noise. Two givens are
+    # only treated as conflicting when both carry middles and share none.
+    w = w.assign(_mtok=w["middle"].map(lambda s: {t for t in str(s).split() if len(t) > 1}))
+    canon = {}
+    for (rg, sn), g in w.groupby(["region_code", "surname"]):
+        givens = sorted(set(g.given))
+        if len(givens) < 2:
+            for x in givens:
+                canon[(rg, sn, x)] = x
+            continue
+        years = {x: set(g[g.given == x].Year) for x in givens}
+        mids = {x: set().union(*g[g.given == x]._mtok, set()) for x in givens}
+        parent = {x: x for x in givens}
+
+        def find(x):
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        for i, a in enumerate(givens):
+            for b in givens[i + 1:]:
+                short, lng = (a, b) if len(a) < len(b) else (b, a)
+                if len(short) < 4 or not lng.startswith(short) or lng[len(short):] in GEN:
+                    continue
+                if years[a] & years[b]:
+                    continue
+                if mids[a] and mids[b] and not (mids[a] & mids[b]):
+                    continue
+                parent[find(a)] = find(b)
+
+        clusters = collections.defaultdict(list)
+        for x in givens:
+            clusters[find(x)].append(x)
+        for members in clusters.values():
+            longest = max(members, key=len)
+            for x in members:
+                canon[(rg, sn, x)] = longest
+    return [canon[(rg, sn, gv)] for rg, sn, gv in zip(w.region_code, w.surname, w.given)]
+
+
 def _clan_detail(g):
     """The families of one unit, for the panel. Grouped by SURNAME only - not by the wider
     token match the rate uses. The rate can afford to be loose because it is just a shaded
@@ -247,7 +300,10 @@ def main():
 
     # ---------------------------------------------------------------- the reading
     # A person is one (region, surname, first name), so the same name in two regions is two
-    # people and a person re-elected across years is still one.
+    # people and a person re-elected across years is still one. First collapse the same
+    # person recorded under different spellings (GWEN / GWENDOLYN) so one person is never
+    # split into two family members.
+    w["given"] = resolve_given(w)
     w["person"] = w.region_code + "|" + w.surname + "|" + w.given
     w["full"] = w["Full Name"]              # itertuples renames "Full Name"; this stays r.full
 
