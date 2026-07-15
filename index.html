@@ -1795,12 +1795,22 @@ let dSIdx = [], dSRes = [], dSActive = -1;
 function dBuildSearch(){
   const mun = new Map(dLgu.map(f => [f.properties.id, f.properties]));
   const idx = [];
+  // province-wide families first: these carry governors, board members and House reps,
+  // offices that have no town and so never appear at municipality level.
+  for(const [code, fams] of Object.entries(DYN.clans.province || {})){
+    const prov = DYN.geo.adm2[code] || {};
+    for(const f of fams)
+      idx.push({ surname: f.name, q: f.name.toLowerCase(), level: "province", unit: code,
+                 place: `${prov.n || ""} · province-wide`, prov: prov.n || "",
+                 provCode: code, region: prov.r, seats: f.seats });
+  }
   for(const [code, fams] of Object.entries(DYN.clans.municipality || {})){
     const p = mun.get(code); if(!p) continue;
     const prov = DYN.geo.adm2[p.p] || {};
     for(const f of fams)
-      idx.push({ surname: f.name, q: f.name.toLowerCase(), unit: code,
-                 town: p.n, prov: prov.n || "", provCode: p.p, region: p.r, seats: f.seats });
+      idx.push({ surname: f.name, q: f.name.toLowerCase(), level: "municipality", unit: code,
+                 place: `${p.n}, ${prov.n || ""}`, town: p.n, prov: prov.n || "",
+                 provCode: p.p, region: p.r, seats: f.seats });
   }
   dSIdx = idx;
 }
@@ -1813,7 +1823,7 @@ function dSearchRun(){
     if(e.q.startsWith(t)) pre.push(e);
     else if(t.length >= 3 && e.q.includes(t)) sub.push(e);
   }
-  const big = (a, b) => b.seats - a.seats || a.town.localeCompare(b.town);
+  const big = (a, b) => b.seats - a.seats || (a.place || "").localeCompare(b.place || "");
   dSRes = [...pre.sort(big), ...sub.sort(big)].slice(0, 12);
   dSActive = dSRes.length ? 0 : -1;
   dSearchRender();
@@ -1825,7 +1835,7 @@ function dSearchRender(){
     <button type="button" role="option" data-i="${i}" aria-selected="${i === dSActive}"
       class="dyn-opt w-full text-left px-3 py-2 flex items-baseline justify-between gap-3 ${i === dSActive ? "is-active" : ""}">
       <span class="truncate"><span class="font-display font-semibold">${e.surname}</span><span
-        class="text-[var(--ink-soft)] text-xs"> · ${e.town}, ${e.prov}</span></span>
+        class="text-[var(--ink-soft)] text-xs"> · ${e.place}</span></span>
       <span class="font-mono text-[10px] text-[var(--ink-soft)] whitespace-nowrap">${e.seats} seats</span>
     </button>`).join("");
   dSMenu.classList.remove("hidden"); dSInput.setAttribute("aria-expanded", "true");
@@ -1847,8 +1857,13 @@ function dSearchGo(i){
   const e = dSRes[i]; if(!e) return;
   dSInput.value = e.surname;
   dSMenu.classList.add("hidden"); dSInput.setAttribute("aria-expanded", "false");
-  dOpen(e.region, e.provCode);
-  dDetailFor("municipality", e.unit, e.town, e.provCode, e.surname);
+  if(e.level === "province"){          // province-wide clan: stay at province level, zoom the region
+    dOpen(e.region, null);
+    dDetailFor("province", e.unit, e.prov, null, e.surname);
+  } else {
+    dOpen(e.region, e.provCode);
+    dDetailFor("municipality", e.unit, e.town, e.provCode, e.surname);
+  }
 }
 
 
