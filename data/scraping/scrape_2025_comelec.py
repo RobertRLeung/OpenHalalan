@@ -24,7 +24,11 @@ cannot be expressed.
 
 Cloudflare, and why every fetch runs inside the browser
 -------------------------------------------------------
-Unlike 2022's site, the 2025 site sits behind a Cloudflare challenge: plain HTTP gets a 403.
+Unlike 2022's site, the 2025 site sits behind a Cloudflare challenge: plain HTTP gets a 403,
+and the challenge is an INTERACTIVE Turnstile - a "Verify you are human" checkbox that an
+automated browser will not pass on its own. So the browser opens visibly and waits for a
+person to click the box once; the clearance cookie that click earns is what lets the rest
+run. One click, then it is unattended.
 The obvious shortcut - clear the challenge in a browser, take the `cf_clearance` cookie, and
 then fetch fast with `requests` - DOES NOT WORK, and fails in a way that looks like it
 works: the cookie is bound to the client's TLS fingerprint (JA3), not merely to the cookie
@@ -140,19 +144,31 @@ def open_browser():
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
 
-    print("opening a browser and clearing Cloudflare ...")
     opts = Options()
     opts.add_argument("--disable-blink-features=AutomationControlled")
     driver = webdriver.Chrome(options=opts)
     driver.set_script_timeout(180)
     driver.get(f"{BASE}/")
-    for _ in range(40):
+
+    # Cloudflare's Turnstile is INTERACTIVE - it shows a "Verify you are human" checkbox that
+    # an automated browser will not auto-pass. A person has to click it once. So the window is
+    # left visible and the script simply waits for the clearance cookie the click produces,
+    # polling for up to WAIT seconds. Everything after this is plain HTTP; the click is the
+    # one manual step.
+    WAIT = 180
+    print("\n" + "=" * 70)
+    print("  A Chrome window has opened. In it, CLICK the 'Verify you are human'")
+    print("  checkbox. Then leave the window alone - scraping continues on its own.")
+    print(f"  Waiting up to {WAIT}s for the click ...")
+    print("=" * 70 + "\n", flush=True)
+
+    for _ in range(WAIT):
         time.sleep(1)
         if any(c["name"] == "cf_clearance" for c in driver.get_cookies()):
-            print("  cleared")
+            print("  cleared - thanks. Carrying on.", flush=True)
             return driver
     driver.quit()
-    sys.exit("Cloudflare did not clear - try again")
+    sys.exit("no click within the wait window; re-run and click the checkbox")
 
 
 def walk_cities(api):
