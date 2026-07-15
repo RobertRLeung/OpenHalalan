@@ -151,6 +151,10 @@
   }
   .lgu:hover{ stroke:var(--stamp); stroke-width:2.4; fill-opacity:1; }
   .lgu.dim{opacity:0.12;}
+  .dyn-opt{ border-bottom:1px solid var(--line); }
+  .dyn-opt:last-child{ border-bottom:0; }
+  .dyn-opt:hover, .dyn-opt.is-active{ background:rgba(240,240,240,0.06); }
+  .fam-hi{ outline:2px solid var(--stamp); outline-offset:4px; border-radius:4px; }
   .prov-line{fill:none; stroke:rgba(255,255,255,0.9);
              stroke-width:var(--prov-stroke, 0.9);
              vector-effect:non-scaling-stroke; pointer-events:none;}
@@ -298,6 +302,15 @@
 
     <!-- controls -->
     <div class="flex flex-wrap gap-4 mb-6 items-end">
+      <div class="relative" style="min-width:15rem;">
+        <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1" for="dyn-search">Find a family</label>
+        <input id="dyn-search" type="text" autocomplete="off" spellcheck="false" placeholder="Search a surname…"
+               role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="dyn-search-menu"
+               class="w-full font-mono text-sm border hairline bg-[var(--paper)] px-3 py-2 rounded-sm" />
+        <div id="dyn-search-menu" role="listbox"
+             class="absolute left-0 z-30 mt-1 hidden max-h-80 overflow-auto rounded-sm"
+             style="top:100%; width:23rem; max-width:90vw; background:var(--paper-dim); border:1px solid var(--line); box-shadow:0 12px 34px rgba(0,0,0,.55);"></div>
+      </div>
       <div>
         <label class="block font-mono text-xs uppercase tracking-wide text-[var(--ink-soft)] mb-1" for="dyn-year">Year</label>
         <select id="dyn-year" class="font-mono text-sm border hairline bg-[var(--paper)] px-3 py-2 rounded-sm"></select>
@@ -1576,6 +1589,18 @@ function initDyn(geo){
     b.addEventListener("click", () => { DYN.match = b.dataset.match; dDraw(); }));
   document.getElementById("dyn-reset").addEventListener("click", () => dOpen(null, null));
 
+  dBuildSearch();
+  dSInput.addEventListener("input", dSearchRun);
+  dSInput.addEventListener("focus", () => { if(dSInput.value.trim().length >= 2) dSearchRun(); });
+  dSInput.addEventListener("blur", () => setTimeout(() => dSMenu.classList.add("hidden"), 120));
+  dSInput.addEventListener("keydown", e => {
+    if(dSMenu.classList.contains("hidden")) return;
+    if(e.key === "ArrowDown"){ e.preventDefault(); dSActive = Math.min(dSActive + 1, dSRes.length - 1); dSearchHi(); }
+    else if(e.key === "ArrowUp"){ e.preventDefault(); dSActive = Math.max(dSActive - 1, 0); dSearchHi(); }
+    else if(e.key === "Enter"){ e.preventDefault(); if(dSActive >= 0) dSearchGo(dSActive); }
+    else if(e.key === "Escape"){ dSMenu.classList.add("hidden"); dSInput.setAttribute("aria-expanded", "false"); }
+  });
+
   dDraw();
 }
 
@@ -1716,7 +1741,7 @@ function dHover(event, d){
 function dOff(){ dtip.classList.add("hidden"); }
 
 // ---------- detail: the families themselves ----------
-function dDetailFor(level, unit, name, provOfUnit){
+function dDetailFor(level, unit, name, provOfUnit, highlight){
   const cell = DYN.byUnit.get(unit);
   const fams = (DYN.clans[level] || {})[unit] || [];
   const parent = level === "municipality"
@@ -1739,7 +1764,7 @@ function dDetailFor(level, unit, name, provOfUnit){
     <p class="text-xs text-[var(--ink-soft)] mb-1">${parent}</p>
     <p class="font-mono text-xs text-[var(--ink-soft)] mb-4">${dPct(v)} of seats family-held · ${fams.length} ${fams.length===1?"family":"families"} shown</p>
     <ul class="space-y-4">${fams.map(f => `
-      <li>
+      <li data-fam="${f.name}">
         <div class="flex items-baseline justify-between gap-2">
           <span class="font-display font-semibold">${f.name}</span>
           <span class="whitespace-nowrap">${tag(f)}</span>
@@ -1756,6 +1781,74 @@ function dDetailFor(level, unit, name, provOfUnit){
       mean a family tie; name matching can be inaccurate, and appearing here is no attribution
       of wrongdoing.
     </p>`;
+
+  if(highlight) dDetail.querySelectorAll("li[data-fam]").forEach(li => {
+    if(li.dataset.fam === highlight){ li.classList.add("fam-hi"); li.scrollIntoView({block: "nearest"}); }
+  });
+}
+
+// ---------- family search ----------
+const dSInput = document.getElementById("dyn-search");
+const dSMenu  = document.getElementById("dyn-search-menu");
+let dSIdx = [], dSRes = [], dSActive = -1;
+
+function dBuildSearch(){
+  const mun = new Map(dLgu.map(f => [f.properties.id, f.properties]));
+  const idx = [];
+  for(const [code, fams] of Object.entries(DYN.clans.municipality || {})){
+    const p = mun.get(code); if(!p) continue;
+    const prov = DYN.geo.adm2[p.p] || {};
+    for(const f of fams)
+      idx.push({ surname: f.name, q: f.name.toLowerCase(), unit: code,
+                 town: p.n, prov: prov.n || "", provCode: p.p, region: p.r, seats: f.seats });
+  }
+  dSIdx = idx;
+}
+
+function dSearchRun(){
+  const t = dSInput.value.trim().toLowerCase();
+  if(t.length < 2){ dSRes = []; return dSearchRender(); }
+  const pre = [], sub = [];
+  for(const e of dSIdx){
+    if(e.q.startsWith(t)) pre.push(e);
+    else if(t.length >= 3 && e.q.includes(t)) sub.push(e);
+  }
+  const big = (a, b) => b.seats - a.seats || a.town.localeCompare(b.town);
+  dSRes = [...pre.sort(big), ...sub.sort(big)].slice(0, 12);
+  dSActive = dSRes.length ? 0 : -1;
+  dSearchRender();
+}
+
+function dSearchRender(){
+  if(!dSRes.length){ dSMenu.classList.add("hidden"); dSInput.setAttribute("aria-expanded", "false"); return; }
+  dSMenu.innerHTML = dSRes.map((e, i) => `
+    <button type="button" role="option" data-i="${i}" aria-selected="${i === dSActive}"
+      class="dyn-opt w-full text-left px-3 py-2 flex items-baseline justify-between gap-3 ${i === dSActive ? "is-active" : ""}">
+      <span class="truncate"><span class="font-display font-semibold">${e.surname}</span><span
+        class="text-[var(--ink-soft)] text-xs"> · ${e.town}, ${e.prov}</span></span>
+      <span class="font-mono text-[10px] text-[var(--ink-soft)] whitespace-nowrap">${e.seats} seats</span>
+    </button>`).join("");
+  dSMenu.classList.remove("hidden"); dSInput.setAttribute("aria-expanded", "true");
+  dSMenu.querySelectorAll(".dyn-opt").forEach(b => {
+    b.addEventListener("mousedown", ev => { ev.preventDefault(); dSearchGo(+b.dataset.i); });
+    b.addEventListener("mouseenter", () => { dSActive = +b.dataset.i; dSearchHi(); });
+  });
+}
+
+function dSearchHi(){
+  dSMenu.querySelectorAll(".dyn-opt").forEach((b, i) => {
+    b.classList.toggle("is-active", i === dSActive);
+    b.setAttribute("aria-selected", i === dSActive);
+  });
+  dSMenu.querySelector(".is-active")?.scrollIntoView({block: "nearest"});
+}
+
+function dSearchGo(i){
+  const e = dSRes[i]; if(!e) return;
+  dSInput.value = e.surname;
+  dSMenu.classList.add("hidden"); dSInput.setAttribute("aria-expanded", "false");
+  dOpen(e.region, e.provCode);
+  dDetailFor("municipality", e.unit, e.town, e.provCode, e.surname);
 }
 
 
