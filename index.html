@@ -413,9 +413,11 @@
     </div>
 
     <p class="mt-4 font-mono text-sm text-[var(--ink-soft)] max-w-3xl leading-relaxed">
-      Families are matched by shared surname within a region, so this counts surname coincidence
-      as kinship and reads loosest at the widest zoom. A proof of concept over 2016–2025;
-      see <a href="#issues" class="underline">Data quality</a>.
+      Families are grouped by shared surname within a region. Marriage ties are not traced, and
+      common surnames read as kin when they are not — this is a descriptive measure of surname
+      co-occurrence in office, <strong style="color:var(--ink)">not an assertion that any named
+      people are related or have done anything wrong</strong>. A proof of concept over
+      2016–2025; see <a href="#issues" class="underline">Data quality</a>.
     </p>
   </div>
 </section>
@@ -1375,7 +1377,9 @@ const DYN = {
 };
 
 // One hue, dark (few dynasties, recedes into the paper) to bright (family-held).
-const DRAMP = ["#3a2429", "#6d2f38", "#a03a44", "#c8434d", "#e8828a"];
+// Light (few families) to deep red (family-held). Low share sits pale against the dark
+// page; high share deepens, so the eye reads intensity as concentration of power.
+const DRAMP = ["#f3e7e7", "#e0a3a8", "#cd626b", "#ad2f3b", "#7a1520"];
 const DBANDS = [0.2, 0.4, 0.6, 0.8];   // upper edges of the first four bands
 
 const dsvg   = d3.select("#dyn-svg");
@@ -1639,7 +1643,11 @@ function dDetailFor(level, unit, name, provOfUnit){
             m.seats.map(([y, o]) => `${o} ’${String(y).slice(2)}`).join(", ")}</li>`).join("")}
           ${f.more ? `<li class="italic">+ ${f.more} more</li>` : ""}
         </ul>
-      </li>`).join("")}</ul>`;
+      </li>`).join("")}</ul>
+    <p class="text-[11px] text-[var(--ink-soft)] mt-5 pt-3 border-t hairline leading-snug">
+      Grouped by shared surname only. A shared surname need not mean a family relationship,
+      and appearing here is not an allegation of wrongdoing.
+    </p>`;
 }
 
 
