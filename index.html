@@ -212,18 +212,18 @@
 
     <!-- Tally board -->
     <div class="md:col-span-2 card p-6 md:p-8">
-      <p class="font-mono text-xs uppercase tracking-[0.15em] text-[var(--ink-soft)] mb-6">Tally board — running count</p>
+      <p class="font-mono text-xs uppercase tracking-[0.15em] text-[var(--ink-soft)] mb-6">Tally board · running count</p>
       <div class="space-y-6" id="tally-board">
-        <div class="tally-row" data-target="8" data-suffix="" data-label="Winners dataset — cycles, 2004–2025">
+        <div class="tally-row" data-target="8" data-suffix="" data-label="Winners dataset · cycles 2004–2025">
           <div class="flex justify-between items-baseline mb-1">
-            <span class="text-sm">Winners dataset — cycles, 2004–2025</span>
+            <span class="text-sm">Winners dataset · cycles 2004–2025</span>
             <span class="font-mono text-2xl font-medium tally-value">0</span>
           </div>
           <svg class="tally-svg" width="90" height="20" viewBox="0 0 90 20"></svg>
         </div>
-        <div class="tally-row" data-target="4" data-suffix="" data-label="Vote counts dataset — cycles, 2016–2025">
+        <div class="tally-row" data-target="4" data-suffix="" data-label="Vote counts dataset · cycles 2016–2025">
           <div class="flex justify-between items-baseline mb-1">
-            <span class="text-sm">Vote counts dataset — cycles, 2016–2025</span>
+            <span class="text-sm">Vote counts dataset · cycles 2016–2025</span>
             <span class="font-mono text-2xl font-medium tally-value">0</span>
           </div>
           <svg class="tally-svg" width="90" height="20" viewBox="0 0 90 20"></svg>
@@ -250,7 +250,7 @@
         <h2 class="font-display font-semibold italic text-3xl md:text-4xl leading-tight">Data para sa bayan.</h2>
       </div>
       <div class="md:col-span-8 card p-8">
-        <p class="text-lg text-[var(--ink-soft)] leading-relaxed">Doing research on the Philippines is hard. Finding the data doesn't have to be. OpenHalalan started as a byproduct of an undergraduate thesis on Philippine political dynasties. It's non-partisan, volunteer-run, and independent — no party, campaign, or government office funds or controls it. One bundled, citable dataset: every winning candidate for seven local &amp; district offices since 2004, plus full candidate-level vote counts since 2016 — winners and losers.</p>
+        <p class="text-lg text-[var(--ink-soft)] leading-relaxed">Doing research on the Philippines is hard. Finding the data doesn't have to be. OpenHalalan started as a byproduct of an undergraduate thesis on Philippine political dynasties. It's non-partisan, volunteer-run, and independent: no party, campaign, or government office funds or controls it. One bundled, citable dataset covering every winning candidate for seven local &amp; district offices since 2004, plus full candidate-level vote counts since 2016, winners and losers alike.</p>
       </div>
     </div>
   </div>
@@ -262,24 +262,24 @@
     <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--gold)] mb-3">Dynasties</p>
     <h2 class="font-display font-bold italic text-4xl md:text-5xl mb-4" style="color:var(--ink)">7,000 islands, 7,000 dynasties?</h2>
     <p class="text-lg text-[var(--ink-soft)] max-w-3xl leading-relaxed mb-6">
-      Each jurisdiction is shaded by the share of its winners who belong to a political
-      family — one surname, more than one seat. Click to drop into a province's towns, or
-      any place to see the families.
+      Each jurisdiction is shaded by the share of its winning candidates who belong to a
+      political family: one surname holding more than one seat. Click a province to see its
+      towns, or any place to see the families.
     </p>
 
     <!-- thin / fat explainer -->
     <div class="grid md:grid-cols-2 gap-4 mb-8">
       <div class="card p-5">
         <p class="font-mono text-xs uppercase tracking-wide text-[var(--gold)] mb-1">Thin · sunud-sunod</p>
-        <p class="text-sm text-[var(--ink-soft)] leading-relaxed">One after another. The family
-          holds a seat across different years — a mayor succeeded by a sibling, a spouse, a
-          child. Succession over time.</p>
+        <p class="text-sm text-[var(--ink-soft)] leading-relaxed">Succession over time. The
+          family holds a seat across different years, as when a mayor is succeeded by a
+          sibling, a spouse, or a child.</p>
       </div>
       <div class="card p-5">
         <p class="font-mono text-xs uppercase tracking-wide text-[var(--gold)] mb-1">Fat · sabay-sabay</p>
-        <p class="text-sm text-[var(--ink-soft)] leading-relaxed">Side by side. The family holds
-          two or more seats in the same place at the same time — a mayor and their vice mayor,
-          a governor and a board member. Power held all at once.</p>
+        <p class="text-sm text-[var(--ink-soft)] leading-relaxed">Concurrent office-holding.
+          The family holds two or more seats in the same place in the same year, such as a
+          mayor and vice mayor, or a governor and a board member.</p>
       </div>
     </div>
 
@@ -302,7 +302,7 @@
         <div class="inline-flex border hairline rounded-sm overflow-hidden" id="dyn-match" role="group">
           <button data-match="all"    class="match-btn font-mono text-sm px-3 py-2">Both</button>
           <button data-match="last"   class="match-btn font-mono text-sm px-3 py-2">Surname</button>
-          <button data-match="middle" class="match-btn font-mono text-sm px-3 py-2">Middle</button>
+          <button data-match="middle" class="match-btn font-mono text-sm px-3 py-2">Middle name</button>
         </div>
       </div>
       <div>
@@ -342,13 +342,13 @@
 
     <p class="mt-4 font-mono text-xs text-[var(--ink-soft)] max-w-3xl leading-relaxed">
       Dynastic measures describe surname and middle-name co-occurrence in office. Many
-      Filipino surnames are common — two unrelated Cruz families read as one — so this
-      cannot separate a coincidental shared name from real kinship. It defaults to
-      surname-only, the more conservative reading; the toggle folds in middle-name (marriage
-      and maternal) links. Name matching can be inaccurate;
-      <strong style="color:var(--ink)">no attribution of wrongdoing is intended</strong>.
-      Towns are 2016–2025, provinces and regions 2004–2025;
-      see <a href="#issues" class="underline">Data quality</a>.
+      Filipino surnames are common (e.g. Cruz). We cannot always separate coincidental
+      surnames from real kinship. The map defaults to surname-only matching, the more
+      conservative reading; the toggle adds middle-name links, which capture marriage and
+      maternal ties. Name matching may be inaccurate.
+      <strong style="color:var(--ink)">No attribution of wrongdoing is intended.</strong>
+      Towns cover 2016 to 2025; provinces and regions, 2004 to 2025.
+      See <a href="#issues" class="underline">Data quality</a>.
     </p>
   </div>
 </section>
@@ -360,9 +360,9 @@
     <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--gold)] mb-3">Map</p>
     <h2 class="font-display font-semibold text-3xl md:text-4xl mb-3">Map the count.</h2>
     <p class="text-lg text-[var(--ink-soft)] max-w-3xl leading-relaxed mb-8">
-      Every city and municipality that reported a ballot, 2016 to 2025 — 1,642 of them,
+      Every city and municipality that reported a ballot from 2016 to 2025, 1,642 in all,
       joined to their boundaries on PSGC code rather than on name. Click a province to go
-      in; click a town to read its full tally.
+      in, then a town to read its full tally.
     </p>
 
     <!-- controls -->
@@ -500,7 +500,7 @@
       <p class="font-mono text-sm text-[var(--ink-soft)]" id="results-count">Loading the dataset…</p>
       <button id="load-more" class="btn-ghost px-4 py-2 rounded-sm font-mono text-sm" style="display:none;">Show 100 more</button>
     </div>
-    <p class="mt-2 font-mono text-sm text-[var(--ink-soft)]">Click a column header to sort. Winners only — full candidate-level vote counts, including losers, are in the raw file.</p>
+    <p class="mt-2 font-mono text-sm text-[var(--ink-soft)]">Click a column header to sort. Winners only. Full candidate-level vote counts, including losers, are in the raw file.</p>
   </div>
 </section>
 
@@ -513,7 +513,7 @@
       <div class="flex-1">
         <p class="pct-tab text-xs text-[var(--stamp)] mb-3">WORKING PAPER &middot; arXiv:2505.21280</p>
         <h3 class="font-display font-semibold text-xl md:text-2xl mb-2">The Families that Stay Together: A Network Analysis of Dynastic Power in Philippine Politics</h3>
-        <p class="text-lg text-[var(--ink-soft)] leading-relaxed">Acuna, R., Alejandro, A., &amp; Leung, R. (2025). Graph-theoretic metrics for clan structure applied to the same election data, testing whether structure — not just dynasty presence — drives development outcomes.</p>
+        <p class="text-lg text-[var(--ink-soft)] leading-relaxed">Acuna, R., Alejandro, A., &amp; Leung, R. (2025). Graph-theoretic metrics for clan structure applied to the same election data, testing whether structure, not just dynasty presence, drives development outcomes.</p>
       </div>
       <span class="btn-ghost shrink-0 inline-block px-5 py-2.5 rounded-sm font-mono text-sm text-center">Read on arXiv ↗</span>
     </a>
@@ -586,7 +586,7 @@
     <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--gold)] mb-3">Notes</p>
     <h2 class="font-display font-semibold text-3xl md:text-4xl mb-10">From the field.</h2>
     <div class="card p-8 text-center">
-      <p class="text-lg text-[var(--ink-soft)]">Field notes on the scrape, the audit, and the fixes go here once the blog is wired up. Nothing published yet — check the <a href="https://github.com/RobertRLeung/OpenHalalan" class="underline">repo</a> for progress in the meantime.</p>
+      <p class="text-lg text-[var(--ink-soft)]">Field notes on the scrape, the audit, and the fixes go here once the blog is wired up. Nothing is published yet. Check the <a href="https://github.com/RobertRLeung/OpenHalalan" class="underline">repo</a> for progress in the meantime.</p>
     </div>
   </div>
 </section>
@@ -1035,7 +1035,7 @@ function onHover(event, d){
     const [id, v] = cell[3][0];
     const [name, party] = MAP.data.candidates[id];
     html += `<p class="mt-1">${name}${party ? ` <span class="text-[var(--ink-soft)]">(${party})</span>` : ""}</p>
-      <p class="font-mono">${fmt(v)} of ${fmt(cell[2])} — ${pct(v, cell[2])}</p>`;
+      <p class="font-mono">${fmt(v)} of ${fmt(cell[2])} · ${pct(v, cell[2])}</p>`;
   } else {
     html += `<p class="mt-1 text-[var(--ink-soft)]">No result this cycle</p>`;
   }
@@ -1577,7 +1577,7 @@ function dLegendDraw(){
             : DYN.mode === "thin" ? "family holding a seat across different years (thin)"
             : "political family";
   const via = DYN.match === "last" ? " Matched on surname."
-            : DYN.match === "middle" ? " Matched on middle name — marriage and maternal ties."
+            : DYN.match === "middle" ? " Matched on middle name (marriage and maternal ties)."
             : " Matched on surname or middle name.";
   const gap = (dLevel() === "municipality" && DYN.year < 2016)
             ? " Town-level data begins in 2016; earlier years show none." : "";
@@ -1663,7 +1663,7 @@ function dDetailFor(level, unit, name, provOfUnit){
         </div>
         <p class="font-mono text-[11px] text-[var(--ink-soft)] mb-1">${f.people} people · ${f.seats} seats</p>
         <ul class="text-xs text-[var(--ink-soft)] space-y-0.5">
-          ${f.members.map(m => `<li><span class="text-[var(--ink)]">${m.name}</span> — ${
+          ${f.members.map(m => `<li><span class="text-[var(--ink)]">${m.name}</span> · ${
             m.seats.map(([y, o]) => `${o} ’${String(y).slice(2)}`).join(", ")}</li>`).join("")}
           ${f.more ? `<li class="italic">+ ${f.more} more</li>` : ""}
         </ul>
