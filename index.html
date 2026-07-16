@@ -281,7 +281,7 @@
     <p class="text-lg text-[var(--ink-soft)] max-w-3xl leading-relaxed mb-6">
       Each jurisdiction is shaded by the share of its winning candidates who belong to a
       political family: one surname holding more than one seat. Click a province to see its
-      towns, or any place to see the families.
+      municipalities, or any place to see the families.
     </p>
 
     <!-- thin / fat explainer -->
@@ -373,7 +373,7 @@
       conservative reading; the toggle adds middle-name links, which capture marriage and
       maternal ties. Name matching may be inaccurate.
       <strong style="color:var(--ink)">No attribution of wrongdoing is intended.</strong>
-      Towns cover 2016 to 2025; provinces and regions, 2004 to 2025.
+      Municipalities cover 2016 to 2025; provinces and regions, 2004 to 2025.
       See <a href="#issues" class="underline">Data quality</a>.
     </p>
   </div>
@@ -388,7 +388,7 @@
     <p class="text-lg text-[var(--ink-soft)] max-w-3xl leading-relaxed mb-8">
       Every city and municipality that reported a ballot from 2016 to 2025, 1,642 in all,
       joined to their boundaries on PSGC code rather than on name. Click a province to go
-      in, then a town to read its full tally.
+      in, then a municipality to read its full tally.
     </p>
 
     <!-- controls -->
@@ -446,7 +446,7 @@
           <ul class="space-y-2 text-sm" id="map-legend"></ul>
         </div>
         <div class="border-t hairline pt-5" id="map-detail">
-          <p class="text-sm text-[var(--ink-soft)]">Hover a town to see who led it. Click for the full tally.</p>
+          <p class="text-sm text-[var(--ink-soft)]">Hover a municipality to see who led it. Click for the full tally.</p>
         </div>
       </div>
     </div>
@@ -552,7 +552,7 @@
     <h2 class="font-display font-semibold text-3xl md:text-4xl mb-10">Known issues.</h2>
     <div class="card p-6">
       <ul class="text-lg text-[var(--ink-soft)] leading-relaxed list-disc pl-5 space-y-3">
-        <li><strong style="color:var(--ink);">No vote counts before 2016.</strong> 2013 has no recoverable municipality-level source, and 2010 survives only as winners-only PDFs covering 83% of towns.</li>
+        <li><strong style="color:var(--ink);">No vote counts before 2016.</strong> 2013 has no recoverable municipality-level source, and 2010 survives only as winners-only PDFs covering 83% of municipalities.</li>
         <li><strong style="color:var(--ink);">Overseas votes are counted, not mapped.</strong> They are included in the nationwide totals but have no locality to place on the map. They exist in the data for 2022 only; the other cycles cover domestic localities, so their nationwide totals run slightly under COMELEC's official canvass. Local races are unaffected.</li>
         <li><strong style="color:var(--ink);">Middle names are incompletely recorded.</strong> The middle name is a maiden name, so the marriage and maternal links in the dynasty map are strong where it is present and largely missing where it is not.</li>
         <li><strong style="color:var(--ink);">Four map outlines are slightly off.</strong> The eight BARMM Special Geographic Area municipalities are drawn from their 2020 interim boundaries, so four of them are one barangay out. Their vote totals are unaffected.</li>
@@ -1686,7 +1686,7 @@ function dLegendDraw(){
             : DYN.match === "middle" ? " Matched on middle name (marriage and maternal ties)."
             : " Matched on surname or middle name.";
   const gap = (dLevel() === "municipality" && DYN.year < 2016)
-            ? " Town-level data begins in 2016; earlier years show none." : "";
+            ? " Municipality-level data begins in 2016; earlier years show none." : "";
   document.getElementById("dyn-legend-note").textContent =
     `Share of each ${word}'s winning candidates in a ${rel}.` + via + gap;
   const edges = [0, ...DBANDS, 1];
@@ -1709,7 +1709,7 @@ function dCrumbDraw(){
   }
   if(DYN.prov) bits.push(`<span style="color:var(--ink)">${DYN.geo.adm2[DYN.prov].n}</span>`);
   dCrumb.innerHTML = bits.join(" › ")
-    + `<span class="text-[var(--ink-soft)]"> · ${dLevel() === "municipality" ? "towns" : "provinces"}</span>`;
+    + `<span class="text-[var(--ink-soft)]"> · ${dLevel() === "municipality" ? "municipalities" : "provinces"}</span>`;
   dCrumb.querySelectorAll("a").forEach(a => a.addEventListener("click", e => {
     e.preventDefault();
     a.dataset.to === "home" ? dOpen(null, null) : dOpen(DYN.region, null);
