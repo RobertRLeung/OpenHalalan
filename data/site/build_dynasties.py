@@ -116,6 +116,8 @@ CURATED_ALIASES = {
     ("VILLARUZ", "0600000000"): [["ROBERT", "BOY", "BOK"]],
     # Loida "Nene" Espinosa of Ajuy, Iloilo (2025 mayor entered first-name "Nene", middle "Loida").
     ("ESPINOSA", "0600000000"): [["LOIDA", "NENE"]],
+    # Melanie "Mel" Valdez of Ilocos Norte (auto-merge won't: a separate "Melchor" makes "Mel" ambiguous).
+    ("VALDEZ", "0100000000"): [["MELANIE", "MEL"]],
 }
 
 
@@ -183,11 +185,18 @@ def resolve_given(w):
         for i, a in enumerate(givens):
             for b in givens[i + 1:]:
                 short, lng = (a, b) if len(a) < len(b) else (b, a)
-                if len(short) < 4 or not lng.startswith(short) or lng[len(short):] in GEN:
+                if len(short) < 3 or not lng.startswith(short) or lng[len(short):] in GEN:
                     continue
-                if years[a] & years[b]:
+                if lng == short + short:             # reduplication (JUN/JUNJUN) - often a Jr
                     continue
-                if mids[a] and mids[b] and not (mids[a] & mids[b]):
+                # ambiguous: the short form also prefixes a divergent name (MEL -> Melanie AND
+                # Melchor), so don't guess which person it is - a curated alias can if needed.
+                if any(o != short and o != lng and o.startswith(short)
+                       and not lng.startswith(o) and not o.startswith(lng) for o in givens):
+                    continue
+                if years[a] & years[b]:              # won in the same year -> two people
+                    continue
+                if mids[a] and mids[b] and not (mids[a] & mids[b]):   # conflicting middles
                     continue
                 parent[find(a)] = find(b)
 
