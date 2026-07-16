@@ -609,16 +609,19 @@
     </div>
   </div>
   <script>
-    // Live-ish download tally from GitHub's release-asset counts (public API, best-effort).
-    fetch("https://api.github.com/repos/RobertRLeung/OpenHalalan/releases")
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(rels => {
-        const n = rels.flatMap(r => r.assets || []).reduce((s, a) => s + (a.download_count || 0), 0);
-        if(n > 0){
-          document.getElementById("dl-count").textContent = n.toLocaleString();
-          document.getElementById("dl-count-line").classList.remove("hidden");
-        }
-      }).catch(() => {});
+    // All-time download tally (best-effort): current live release-asset counts plus a baseline
+    // the publish workflow banks each time it replaces the assets (which resets their counts).
+    Promise.all([
+      fetch("https://api.github.com/repos/RobertRLeung/OpenHalalan/releases").then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch("https://raw.githubusercontent.com/RobertRLeung/OpenHalalan/main/downloads.json").then(r => r.ok ? r.json() : {}).catch(() => ({})),
+    ]).then(([rels, base]) => {
+      const live = (rels || []).flatMap(r => r.assets || []).reduce((s, a) => s + (a.download_count || 0), 0);
+      const n = (base.baseline || 0) + live;
+      if(n > 0){
+        document.getElementById("dl-count").textContent = n.toLocaleString();
+        document.getElementById("dl-count-line").classList.remove("hidden");
+      }
+    }).catch(() => {});
   </script>
 </section>
 
