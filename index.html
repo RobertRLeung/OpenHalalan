@@ -972,6 +972,14 @@ function leaderKey(cell, pos){
 
 const unitWord = () => unit() === "prov" ? "province" : "city and municipality";
 
+// Recognisable national candidates keep their known colour instead of a rank-ordered slot:
+// Marcos red, Robredo pink, so the 2022 presidential map reads the way people remember it.
+const FIXED_WINNER = {
+  "MARCOS, BONGBONG":            "#D14A4A",   // Marcos red
+  "ROBREDO, LENI":              "#E0559E",   // Leni pink
+  "ROBREDO, LENI DAANG MATUWID": "#E0559E",
+};
+
 function drawWinner(sel, active, pos){
   // Rank the contenders by how many units each led, and give the top eight the
   // eight slots in fixed order. A ninth is "Other" - never a ninth hue. The count
@@ -985,7 +993,7 @@ function drawWinner(sel, active, pos){
   }
   const ranked = [...led.entries()].sort((a, b) => b[1] - a[1]);
   const top = ranked.slice(0, 8);
-  MAP.colours = new Map(top.map(([k], i) => [k, `var(${SLOTS[i]})`]));
+  MAP.colours = new Map(top.map(([k], i) => [k, FIXED_WINNER[k] || `var(${SLOTS[i]})`]));
 
   sel.style("fill", d => {
     const cell = MAP.byUnit.get(d.properties.id);
@@ -1001,7 +1009,7 @@ function drawWinner(sel, active, pos){
 
   elLegend.innerHTML = top.map(([k, n], i) => `
     <li class="flex items-center gap-2">
-      <span class="swatch" style="background:var(${SLOTS[i]})"></span>
+      <span class="swatch" style="background:${MAP.colours.get(k)}"></span>
       <span class="flex-1 truncate" title="${k}">${k}</span>
       <span class="font-mono text-xs text-[var(--ink-soft)]">${fmt(n)}</span>
     </li>`).join("")
