@@ -18,10 +18,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Upload datasets to the rolling release
+      - name: Roll the cumulative download tally, then re-upload
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # --clobber resets each asset's download_count, so fold the current live counts
+          # into a persistent baseline first; the site shows baseline + current = all-time.
+          live=$(gh api "repos/${{ github.repository }}/releases" --paginate \
+                   --jq '[.[].assets[].download_count] | add // 0')
+          base=$(jq -r '.baseline // 0' downloads.json 2>/dev/null || echo 0)
+          total=$((base + live))
+          echo "{\"baseline\": $total}" > downloads.json
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add downloads.json
+          git commit -m "Roll download tally: +$live (baseline $total)" || echo "nothing to commit"
+          git push
           gh release upload data-latest \
             data/output/NLE_Winners_2004-2025.csv \
             data/output/NLE_Vote_Counts_2016-2025.csv.gz \
