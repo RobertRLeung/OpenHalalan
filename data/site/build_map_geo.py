@@ -267,6 +267,14 @@ def polygon_lonlat(topo, geom):
 
 # ---------------------------------------------------------------- build
 
+def clean_adm2_name(n):
+    """Upstream labels NCR districts and independent cities '... (Not a Province)'; the site
+    never calls them provinces, so drop that parenthetical."""
+    if not n:
+        return n
+    return re.sub(r"\s*\(not a province\)\s*$", "", str(n), flags=re.I).strip()
+
+
 def collect(res, tol, psgc_name, paths, say):
     """Every LGU and adm2 unit at one resolution, as lon/lat rings."""
     prov_files = [p for p in paths if p.startswith(f"2023/topojson/regions/{res}/")]
@@ -284,7 +292,7 @@ def collect(res, tol, psgc_name, paths, say):
                     # Every adm2 unit gets a name whether or not it has an outline. The
                     # Special Geographic Area has none upstream, and without this it would
                     # drop out of the index the vote join resolves province names against.
-                    adm2[psgc] = {"n": pr.get("adm2_en") or SGA_NAME,
+                    adm2[psgc] = {"n": clean_adm2_name(pr.get("adm2_en")) or SGA_NAME,
                                   "r": str(pr["adm1_psgc"]).zfill(10)}
                     if g.get("type") is None or "arcs" not in g:
                         continue
