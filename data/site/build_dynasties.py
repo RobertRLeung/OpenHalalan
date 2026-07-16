@@ -105,6 +105,19 @@ CITY_ALIAS = {
 MUNICIPAL = {"MAYOR", "VICE MAYOR", "COUNCILOR"}
 _EMPTY = frozenset()
 
+# Same-person aliases the automatic pass cannot infer - different name roots with no shared
+# middle, so only outside knowledge ties them. Keyed by (surname, region_code); each entry is
+# a group of given-name spellings that are ONE person. Kept deliberately narrow: a mistaken
+# entry here merges two real people, so add only well-established public figures.
+CURATED_ALIASES = {
+    # Imee Marcos is recorded as both "Imee" and "Maria (Imelda)"; NOT "Imelda", her mother.
+    ("MARCOS", "0100000000"): [["MARIA", "IMEE"]],
+    # Robert "Boy"/"Bok" Villaruz of Ajuy, Iloilo.
+    ("VILLARUZ", "0600000000"): [["ROBERT", "BOY", "BOK"]],
+    # Loida "Nene" Espinosa of Ajuy, Iloilo (2025 mayor entered first-name "Nene", middle "Loida").
+    ("ESPINOSA", "0600000000"): [["LOIDA", "NENE"]],
+}
+
 
 # Clans shipped per unit in the detail payload, and members per clan. A cap, not a filter of
 # the rates - the numbers count everyone; only the panel list is bounded.
@@ -178,6 +191,11 @@ def resolve_given(w):
                     continue
                 parent[find(a)] = find(b)
 
+        for group in CURATED_ALIASES.get((sn, rg), []):   # hand-verified same-person aliases
+            present = [x for x in group if x in parent]
+            for x in present[1:]:
+                parent[find(x)] = find(present[0])
+
         clusters = collections.defaultdict(list)
         for x in givens:
             clusters[find(x)].append(x)
@@ -210,8 +228,10 @@ def _clan_detail(g):
         thin = any(a != b and ya != yb for (a, ya) in seats for (b, yb) in seats)
         members = {}
         for r in rows:
-            members.setdefault(r.person, {"name": r.full, "seats": set()})
-            members[r.person]["seats"].add((int(r.Year), pretty(r.Position)))
+            m = members.setdefault(r.person, {"name": r.full, "seats": set()})
+            if len(str(r.full)) > len(str(m["name"])):   # show the fullest recorded name
+                m["name"] = r.full
+            m["seats"].add((int(r.Year), pretty(r.Position)))
         member_list = sorted(
             ({"name": m["name"], "seats": sorted(m["seats"], reverse=True)}
              for m in members.values()),
@@ -282,6 +302,12 @@ def main():
     w["given"] = w["First Name"].map(fold).str.split().str[0].fillna("")
     w["middle"] = w["Middle Name"].map(fold)          # whole middle name, so DELA CRUZ stays one token
     w = w[(w.surname != "") & (w.given != "")]
+    # Mis-scrapes whose given name is just the surname repeated (e.g. "SANTOS, SANTOS"): the
+    # real given name is lost, so the record can't be tied to a person or family. Drop it from
+    # the reading (it stays in the published winners file, where it is still a real seat won).
+    misscrape = int((w.given == w.surname).sum())
+    w = w[w.given != w.surname]
+    say(f"  dropped {misscrape} mis-scraped names whose given == surname")
 
     w["prov_code"] = w["Province"].map(province_psgc)
     unmapped = w[w.prov_code.isna()]
