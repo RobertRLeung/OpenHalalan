@@ -591,6 +591,9 @@
           <a href="https://github.com/RobertRLeung/OpenHalalan/releases/download/data-latest/NLE_Winners_2004-2025.csv" class="btn-primary inline-block px-5 py-2.5 rounded-sm font-mono text-sm">Winners, 2004–2025 (13 MB) ↓</a>
           <a href="https://github.com/RobertRLeung/OpenHalalan/releases/download/data-latest/NLE_Vote_Counts_2016-2025.csv.gz" class="btn-primary inline-block px-5 py-2.5 rounded-sm font-mono text-sm">Vote counts, 2016–2025 (39 MB) ↓</a>
         </div>
+        <p class="font-mono text-xs mt-4 hidden" id="dl-count-line">
+          <span style="color:var(--stamp)" id="dl-count">0</span><span class="text-[var(--ink-soft)]"> downloads and counting</span>
+        </p>
         <p class="text-xs text-[var(--ink-soft)] mt-3">Prefer a frozen, citable snapshot? Use the <a href="https://doi.org/10.5281/zenodo.17783099" class="underline">Zenodo archive</a>.</p>
       </div>
     </div>
@@ -605,6 +608,18 @@
       <p class="text-base text-[var(--ink-soft)] mt-3">Licensed under the <a href="https://github.com/RobertRLeung/OpenHalalan" class="underline">Open Database License (ODbL) v1.0</a>. Field-level definitions: <a href="https://github.com/RobertRLeung/OpenHalalan/blob/main/data/output/DATA_DICTIONARY_WINNERS.md" class="underline">winners</a> · <a href="https://github.com/RobertRLeung/OpenHalalan/blob/main/data/output/DATA_DICTIONARY_VOTE_COUNTS.md" class="underline">vote counts</a>.</p>
     </div>
   </div>
+  <script>
+    // Live-ish download tally from GitHub's release-asset counts (public API, best-effort).
+    fetch("https://api.github.com/repos/RobertRLeung/OpenHalalan/releases")
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(rels => {
+        const n = rels.flatMap(r => r.assets || []).reduce((s, a) => s + (a.download_count || 0), 0);
+        if(n > 0){
+          document.getElementById("dl-count").textContent = n.toLocaleString();
+          document.getElementById("dl-count-line").classList.remove("hidden");
+        }
+      }).catch(() => {});
+  </script>
 </section>
 
 <!-- ============ BLOG TEASER ============ -->
