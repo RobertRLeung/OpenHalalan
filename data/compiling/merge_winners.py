@@ -100,6 +100,41 @@ def canonicalise_inherited(df):
     return df[WINNERS_COLUMNS]
 
 
+# Records scraped with only an initial for a first name, corrected to the real given name
+# after web verification (news / COMELEC). Keyed by the exact (Last Name, Province, scraped
+# First Name); several also reunite the record with the person's fuller entries in other years.
+# Ambiguous cases (Sagum "J": Jayson or Jerry?) and wrong-merge risks (Asistio "L.A.": would
+# fuse two different Luises) are deliberately left alone.
+NAME_FIXES = [
+    # (Last Name, Province, scraped First) -> (real First, real Middle)
+    ("AGLIPAY", "CAGAYAN", "1",        "EDGAR",    None),            # Gov. Edgar "Egay" Aglipay
+    ("LANETE",  "MASBATE", "S",        "SCOTT",    "DAVIES"),        # Rep. Scott Davies Lanete
+    ("UY",      "BOHOL",   "A.",       "ALVIN",    "JAYAG"),         # Mayor Alvin Jayag Uy (Baclayon)
+    ("TERUEL",  "ILOILO",  "V",        "VIRGILIO", "TORRES"),        # Mayor Virgilio "Nene" Teruel
+    ("TERUEL",  "ILOILO",  "NENE",     "VIRGILIO", "TORRES"),        #   (same person, nickname entry)
+    ("RUANTO",  "QUEZON",  "L.A.",     "LORD",     "ARNEL FUENTE"),  # Lord Arnel Ruanto (Infanta)
+    ("RUANTO",  "QUEZON",  "L.",       "LORD",     "ARNEL FUENTE"),
+    ("JAVIER",  "ANTIQUE", "J.TOBIAS", "TOBIAS",   None),            # PBM Tobias "Tobing" Javier
+    ("JAVIER",  "ANTIQUE", "J.",       "TOBIAS",   None),
+    ("CLAVER",  "KALINGA", "G.",       "GKACHAY",  None),            # PBM Gkachay Claver
+]
+
+
+def apply_name_fixes(df):
+    fixed = 0
+    for last, prov, old_first, new_first, new_mid in NAME_FIXES:
+        m = ((df["Last Name"].astype(str).str.upper() == last)
+             & (df["Province"].astype(str).str.upper() == prov)
+             & (df["First Name"].astype(str) == old_first))
+        if m.any():
+            df.loc[m, "First Name"] = new_first
+            df.loc[m, "Middle Name"] = new_mid
+            df.loc[m, "Full Name"] = last + ", " + new_first + ((" " + new_mid) if new_mid else "")
+            fixed += int(m.sum())
+    print(f"  applied {fixed} verified initial-name fixes")
+    return df
+
+
 def main():
     source = pd.read_csv(SOURCE_WINNERS, low_memory=False)
     print(f"Source winners file: {len(source):,} rows")
@@ -121,6 +156,7 @@ def main():
         frames.append(to_winners_schema(scraped, year))
 
     merged = pd.concat(frames, ignore_index=True)
+    merged = apply_name_fixes(merged)
 
     # --- clean up -----------------------------------------------------------
     print("\nnormalising:")
