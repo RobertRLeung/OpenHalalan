@@ -135,6 +135,23 @@ def fold(s):
     return re.sub(r"\s+", " ", re.sub(r"[^A-Z0-9 ]", " ", s)).strip()
 
 
+# Tokens that lead a first name but aren't the given name: a leaked "H." (Hadji) honorific.
+GIVEN_HONORIFICS = {"H", "HADJI", "HADJ", "HAJI", "HJ"}
+
+def extract_given(first_name):
+    """The first given name, recovering it where a naive first-token split fails: apostrophes
+    and hyphens are joined rather than split ("L'Michelli" -> LMICHELLI, "Mar-Len" -> MARLEN,
+    not "L"/"MAR"), and a leading honorific is dropped ("H. Yasser" -> YASSER)."""
+    if pd.isna(first_name):
+        return ""
+    toks = fold(str(first_name).replace("'", "").replace("-", "")).split()
+    while len(toks) > 1 and toks[0] in GIVEN_HONORIFICS:
+        toks = toks[1:]
+    if not toks:
+        return ""
+    return "MARIA" if toks[0] == "MA" else toks[0]   # "Ma." is the Filipino abbreviation for Maria
+
+
 def city_key(s):
     s = fold(s)
     for pat in (r"^SCIENCE CITY OF ", r"^CITY OF ", r"^MUNICIPALITY OF "):
@@ -308,15 +325,9 @@ def main():
     w = w[~w["Position"].isin(["PRESIDENT", "VICE PRESIDENT", "SENATOR"])]
 
     w["surname"] = w["Last Name"].map(fold)
-    w["given"] = w["First Name"].map(fold).str.split().str[0].fillna("")
+    w["given"] = w["First Name"].map(extract_given)
     w["middle"] = w["Middle Name"].map(fold)          # whole middle name, so DELA CRUZ stays one token
     w = w[(w.surname != "") & (w.given != "")]
-    # Mis-scrapes whose given name is just the surname repeated (e.g. "SANTOS, SANTOS"): the
-    # real given name is lost, so the record can't be tied to a person or family. Drop it from
-    # the reading (it stays in the published winners file, where it is still a real seat won).
-    misscrape = int((w.given == w.surname).sum())
-    w = w[w.given != w.surname]
-    say(f"  dropped {misscrape} mis-scraped names whose given == surname")
 
     w["prov_code"] = w["Province"].map(province_psgc)
     unmapped = w[w.prov_code.isna()]
