@@ -138,15 +138,20 @@ def fold(s):
 # Tokens that lead a first name but aren't the given name: a leaked "H." (Hadji) honorific.
 GIVEN_HONORIFICS = {"H", "HADJI", "HADJ", "HAJI", "HJ"}
 
-def extract_given(first_name):
+def _first_token(s):
+    return fold(str(s).replace("'", "").replace("-", "")).split() if not pd.isna(s) else []
+
+def extract_given(first_name, middle_name=""):
     """The first given name, recovering it where a naive first-token split fails: apostrophes
-    and hyphens are joined rather than split ("L'Michelli" -> LMICHELLI, "Mar-Len" -> MARLEN,
-    not "L"/"MAR"), and a leading honorific is dropped ("H. Yasser" -> YASSER)."""
-    if pd.isna(first_name):
-        return ""
-    toks = fold(str(first_name).replace("'", "").replace("-", "")).split()
-    while len(toks) > 1 and toks[0] in GIVEN_HONORIFICS:
+    and hyphens are joined rather than split ("L'Michelli" -> LMICHELLI, "Mar-Len" -> MARLEN),
+    a leading Hadji honorific is dropped ("H. Yasser" -> YASSER), and when the first name is a
+    lone honorific the real given is taken from the middle field ("Golo, H." [Yasser] -> YASSER).
+    "Ma." expands to Maria."""
+    toks = _first_token(first_name)
+    while toks and toks[0] in GIVEN_HONORIFICS:
         toks = toks[1:]
+    if not toks:                       # first name was a lone honorific; the given sits in the middle
+        toks = _first_token(middle_name)
     if not toks:
         return ""
     return "MARIA" if toks[0] == "MA" else toks[0]   # "Ma." is the Filipino abbreviation for Maria
@@ -325,7 +330,7 @@ def main():
     w = w[~w["Position"].isin(["PRESIDENT", "VICE PRESIDENT", "SENATOR"])]
 
     w["surname"] = w["Last Name"].map(fold)
-    w["given"] = w["First Name"].map(extract_given)
+    w["given"] = [extract_given(f, m) for f, m in zip(w["First Name"], w["Middle Name"])]
     w["middle"] = w["Middle Name"].map(fold)          # whole middle name, so DELA CRUZ stays one token
     w = w[(w.surname != "") & (w.given != "")]
 
