@@ -1724,7 +1724,7 @@ function dLegendDraw(){
   const gap = (dLevel() === "municipality" && DYN.year < 2016)
             ? " Municipality-level data begins in 2016; earlier years show none." : "";
   document.getElementById("dyn-legend-note").textContent =
-    `Share of each ${word}'s winning candidates in a ${rel}.` + via + gap;
+    `Share of each ${word}'s ${DYN.year} winning candidates in a ${rel}.` + via + gap;
   const edges = [0, ...DBANDS, 1];
   dLegend.innerHTML = DRAMP.map((c, i) =>
     `<li class="flex items-center gap-2">
