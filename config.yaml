@@ -55,6 +55,7 @@ datasets:
     - Province
     - City
     - Region
+    - Sex
 
   # Columns dropped from the source file. These are ANALYSIS ARTEFACTS from a prior
   # paper, not election results, and they are not comparable across cycles:

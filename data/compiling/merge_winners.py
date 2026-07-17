@@ -72,6 +72,8 @@ def to_winners_schema(df, year):
             # city), which is why the column is ~93% filled rather than 100%.
             "City": df["city"].values,
             "Region": df["region"].values,
+            # Sex is only known for cycles taken from COMELEC's List of Elected Candidates.
+            "Sex": "",
         }
     )[WINNERS_COLUMNS]
 
@@ -97,6 +99,7 @@ def canonicalise_inherited(df):
     # The inherited cycles (2004-2013) predate any ballot-level source, so they carry no
     # city at all - the finest place they record is the province. City stays blank for them.
     df["City"] = pd.NA
+    df["Sex"] = ""
     return df[WINNERS_COLUMNS]
 
 
@@ -150,6 +153,16 @@ def main():
         print(f"  dropped artefact columns: {', '.join(dropped)}")
 
     frames = [canonicalise_inherited(inherited)]
+
+    # 2001 comes from COMELEC's official List of Elected Candidates (winners-only PDFs). It is
+    # a whole new cycle for the dataset and the one source that carries each winner's sex.
+    lec2001 = PROCESSED / "listelected_2001.csv"
+    if lec2001.exists():
+        df01 = pd.read_csv(lec2001, dtype=str).fillna("")
+        df01["Year"] = df01["Year"].astype(int)
+        frames.append(df01[WINNERS_COLUMNS])
+        print(f"  + 2001 List of Elected Candidates: {len(df01):,} rows")
+
     for year in SCRAPED_YEARS:
         scraped = pd.read_csv(winners_csv(year))
         print(f"  + {year} COMELEC scrape: {len(scraped):,} rows")

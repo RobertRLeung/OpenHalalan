@@ -1,6 +1,6 @@
 # Data Dictionary — `NLE_Winners_2004-2025.csv`
 
-One row per **winning** candidate per office per election cycle. **139,517 rows, 9 columns.**
+One row per **winning** candidate per office per election cycle. **157,333 rows, 12 columns.**
 
 Rebuild with `python run_all.py`. Audit with `python data/audit/make.py`.
 
@@ -8,11 +8,11 @@ Rebuild with `python run_all.py`. Audit with `python data/audit/make.py`.
 
 ## Coverage
 
-**Temporal.** Eight cycles, every Philippine local election from 2004 to 2025.
+**Temporal.** Nine cycles, every Philippine local election from 2001 to 2025.
 
-| 2004 | 2007 | 2010 | 2013 | 2016 | 2019 | 2022 | 2025 |
-|---|---|---|---|---|---|---|---|
-| 17,368 | 16,608 | 17,502 | 17,161 | 17,774 | 17,793 | 17,818 | 17,819 |
+| 2001 | 2004 | 2007 | 2010 | 2013 | 2016 | 2019 | 2022 | 2025 |
+|---|---|---|---|---|---|---|---|---|
+| 17,490 | 17,368 | 16,608 | 17,502 | 17,161 | 17,774 | 17,793 | 17,818 | 17,819 |
 
 **Geographic.** 88 `Province` values (82 provinces, 4 NCR districts, plus the provinces
 created by the Maguindanao split) across 18 regions. The only nulls are the nationwide
@@ -38,6 +38,10 @@ vice president, 12 senators). These rows have no `Province`, `City` or `Region`.
 is still held back: its winners are organisations, not people, and its seats need the BANAT
 allocation. 2004–2013 predate the ballot-level source, so they carry no nationwide winners.
 
+**2001.** This cycle comes from COMELEC's official *List of Elected Candidates* PDFs (winners
+only — there are no 2001 vote counts), the same source that supplies the `Sex` column. Its
+middle names are recorded as initials.
+
 ---
 
 ## Columns
@@ -53,8 +57,9 @@ allocation. 2004–2013 predate the ballot-level source, so they carry no nation
 | `Party` | string | Canonical party code. Spellings of the same party are unified across cycles; real mergers are **not** — see below. |
 | `Year` | int | Election year. |
 | `Province` | string | Canonical province or NCR district. Stable across cycles. |
-| `City` | string | Canonical city / municipality, matching `city` in the vote-counts dataset. Present only for the **municipal** offices (mayor, vice mayor, councilor) and only from **2016** on: the office has to be municipal to have a city, and the city has to come off a ballot the project scraped. Blank for provincial and district offices (a governor has no city), and blank for every 2004–2013 row, which predates any ballot-level source. About 47% filled overall. |
-| `Region` | string | Canonical region. Never null. |
+| `City` | string | City / municipality. Present for the **municipal** offices (mayor, vice mayor, councilor): from **2016** on it is the canonical name off a scraped ballot (matching `city` in the vote-counts dataset); for **2001** it is the name as printed in the List of Elected Candidates. Blank for provincial and district offices (a governor has no city) and for 2004–2013, which predate any ballot-level source. |
+| `Region` | string | Canonical region. Blank only for the nationwide races. |
+| `Sex` | string | `M` or `F`, from COMELEC's official List of Elected Candidates. Populated for **2001**; blank for the other cycles until backfilled from the 2004–2022 lists. |
 
 No vote totals here — this records *who won*. For votes, use the vote-counts dataset.
 

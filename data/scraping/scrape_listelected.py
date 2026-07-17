@@ -233,13 +233,90 @@ def parse_year(year):
     return parse_citymun(year) + parse_provincial(year) + parse_house(year)
 
 
+# ----------------------------------------------------------------- normalise to schema
+POSITION_MAP = {
+    "MAYOR": "MAYOR", "VICE-MAYOR": "VICE MAYOR", "COUNCILOR": "COUNCILOR",
+    "PROVINCIAL GOVERNOR": "GOVERNOR", "PROVINCIAL VICE-GOVERNOR": "VICE GOVERNOR",
+    "PROVINCIAL BOARD MEMBER": "PROVINCIAL BOARD MEMBER",
+    "MEMBER, HOUSE OF REPRESENTATIVES": "MEMBER, HOUSE OF REPRESENTATIVES",
+}
+# COMELEC province label (parenthetical stripped) -> our canonical province. Renamed provinces,
+# the NCR hyphen, and independent cities that appear as a House "province" filed to their parent.
+PROVINCE_MAP = {
+    "TAWI-TAWI": "TAWI TAWI", "COMPOSTELA VALLEY": "DAVAO DE ORO", "DAVAO": "DAVAO DEL NORTE",
+    "NCR - FIRST DISTRICT": "NCR FIRST DISTRICT", "NCR - SECOND DISTRICT": "NCR SECOND DISTRICT",
+    "NCR - THIRD DISTRICT": "NCR THIRD DISTRICT", "NCR - FOURTH DISTRICT": "NCR FOURTH DISTRICT",
+    "CEBU CITY": "CEBU", "DAVAO CITY": "DAVAO DEL SUR", "ILOILO CITY": "ILOILO",
+    "BACOLOD CITY": "NEGROS OCCIDENTAL", "BAGUIO CITY": "BENGUET",
+    "CAGAYAN DE ORO CITY": "MISAMIS ORIENTAL", "ZAMBOANGA CITY": "ZAMBOANGA DEL SUR",
+    "CITY OF MANILA": "NCR FIRST DISTRICT", "CITY OF MAKATI": "NCR SECOND DISTRICT",
+    "CITY OF PASIG": "NCR SECOND DISTRICT", "CITY OF MARIKINA": "NCR SECOND DISTRICT",
+    "QUEZON CITY": "NCR SECOND DISTRICT", "SAN JUAN": "NCR SECOND DISTRICT",
+    "CITY OF MANDALUYONG": "NCR SECOND DISTRICT", "KALOOCAN CITY": "NCR THIRD DISTRICT",
+    "MALABON CITY - NAVOTAS": "NCR THIRD DISTRICT", "CITY OF VALENZUELA": "NCR THIRD DISTRICT",
+    "PASAY CITY": "NCR FOURTH DISTRICT", "CITY OF PARAÑAQUE": "NCR FOURTH DISTRICT",
+    "CITY OF LAS PIÑAS": "NCR FOURTH DISTRICT", "CITY OF MUNTINLUPA": "NCR FOURTH DISTRICT",
+    "TAGUIG-PATEROS": "NCR FOURTH DISTRICT", "CITY OF ANTIPOLO": "RIZAL",
+}
+
+
+def _strip_paren(s):
+    return re.sub(r"\s*\(.*?\)", "", str(s)).strip()
+
+
+def _clean_prov(p):
+    p = _strip_paren(p)
+    return PROVINCE_MAP.get(p, p)
+
+
+def _split_name(full):
+    """'SURNAME, GIVEN MIDDLE' -> (last, first, middle). The middle name (a maternal surname or
+    an initial) is the last token; everything between the comma and it is the given name."""
+    if "," not in full:
+        return full.strip(), "", ""
+    last, rest = full.split(",", 1)
+    toks = rest.split()
+    if not toks:
+        return last.strip(), "", ""
+    if len(toks) == 1:
+        return last.strip(), toks[0], ""
+    return last.strip(), " ".join(toks[:-1]), toks[-1]
+
+
+def to_winners_df(year):
+    """The cycle's winners in the published NLE_Winners schema, with a Sex column."""
+    import pandas as pd
+    rows = []
+    for r in parse_year(year):
+        last, first, mid = _split_name(r["name"])
+        rows.append({
+            "Last Name": last, "First Name": first, "Middle Name": mid, "Title": "",
+            "Full Name": r["name"], "Position": POSITION_MAP[r["position"]], "Party": r["party"],
+            "Year": year, "Province": _clean_prov(r["province"]),
+            "City": _strip_paren(r["city"]) if r["city"] else "", "Region": "", "Sex": r["sex"],
+        })
+    return pd.DataFrame(rows)
+
+
+def build(year):
+    """Write the cycle's winners to data/processed/listelected_{year}.csv for the merge step."""
+    out = RAW.parents[1] / "processed" / f"listelected_{year}.csv"
+    df = to_winners_df(year)
+    df.to_csv(out, index=False)
+    print(f"wrote {out} ({len(df):,} rows)")
+    return out
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--download", action="store_true")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--dump", metavar="YEAR_CAT")
+    ap.add_argument("--build", type=int, metavar="YEAR", help="write listelected_<year>.csv")
     args = ap.parse_args()
     if args.download:
         download(force=args.force)
     if args.dump:
         dump(args.dump)
+    if args.build:
+        build(args.build)
