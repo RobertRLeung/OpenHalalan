@@ -138,6 +138,52 @@ def apply_name_fixes(df):
     return df
 
 
+def backfill_sex(merged):
+    """Fill the Sex column for 2004-2022 from COMELEC's List of Elected Candidates: an exact
+    (year, position, surname, given) match where unambiguous, then a gender-consistent first
+    name (>=99% one sex) to recover spelling mismatches. Rows left unmatched stay blank."""
+    import re
+    import unicodedata
+
+    def fold(s):
+        if pd.isna(s):
+            return ""
+        s = unicodedata.normalize("NFKD", str(s))
+        s = "".join(c for c in s if not unicodedata.combining(c)).upper()
+        return re.sub(r"\s+", " ", re.sub(r"[^A-Z0-9 ]", " ", s)).strip()
+
+    def given(s):
+        t = fold(s).split()
+        return t[0] if t else ""
+
+    bykey_path = PROCESSED / "sex_by_key.csv"
+    if not bykey_path.exists():
+        print("  (no sex lookup; skipping Sex backfill)")
+        return merged
+    keymap = {(int(y), p, l, g): sx
+              for y, p, l, g, sx in pd.read_csv(bykey_path, dtype=str).itertuples(index=False)}
+    gmap = dict(pd.read_csv(PROCESSED / "sex_by_given.csv", dtype=str).itertuples(index=False))
+
+    sex = merged["Sex"].tolist()
+    yr, pos = merged["Year"].tolist(), merged["Position"].tolist()
+    last, first = merged["Last Name"].tolist(), merged["First Name"].tolist()
+    filled = 0
+    for i in range(len(sex)):
+        if sex[i] not in ("", None) and pd.notna(sex[i]):
+            continue
+        y = int(yr[i])
+        if not 2004 <= y <= 2022:
+            continue
+        g = given(first[i])
+        s = keymap.get((y, pos[i], fold(last[i]), g)) or gmap.get(g)
+        if s:
+            sex[i] = s
+            filled += 1
+    merged["Sex"] = sex
+    print(f"  backfilled Sex on {filled:,} rows (2004-2022 from the elected-candidates lists)")
+    return merged
+
+
 def main():
     source = pd.read_csv(SOURCE_WINNERS, low_memory=False)
     print(f"Source winners file: {len(source):,} rows")
@@ -170,6 +216,7 @@ def main():
 
     merged = pd.concat(frames, ignore_index=True)
     merged = apply_name_fixes(merged)
+    merged = backfill_sex(merged)
 
     # --- clean up -----------------------------------------------------------
     print("\nnormalising:")

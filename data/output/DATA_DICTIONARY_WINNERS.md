@@ -59,7 +59,7 @@ middle names are recorded as initials.
 | `Province` | string | Canonical province or NCR district. Stable across cycles. |
 | `City` | string | City / municipality. Present for the **municipal** offices (mayor, vice mayor, councilor): from **2016** on it is the canonical name off a scraped ballot (matching `city` in the vote-counts dataset); for **2001** it is the name as printed in the List of Elected Candidates. Blank for provincial and district offices (a governor has no city) and for 2004–2013, which predate any ballot-level source. |
 | `Region` | string | Canonical region. Blank only for the nationwide races. |
-| `Sex` | string | `M` or `F`, from COMELEC's official List of Elected Candidates. Populated for **2001**; blank for the other cycles until backfilled from the 2004–2022 lists. |
+| `Sex` | string | `M` or `F`, from COMELEC's official List of Elected Candidates. Populated for **2001** and most of **2004–2022** — matched onto our rows by name (98% of 2004–2013; ~70–76% of 2016–2022, where our ballot-derived names use nicknames the lists spell out in full). Assigned only on a confident (year, office, surname, given) match or a gender-consistent first name — **never guessed** — so the unmatched remainder and all of **2025** (COMELEC has not posted its 2025 list) are left blank. About 78% filled overall. |
 
 No vote totals here — this records *who won*. For votes, use the vote-counts dataset.
 

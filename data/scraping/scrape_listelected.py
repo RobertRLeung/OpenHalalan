@@ -307,12 +307,106 @@ def build(year):
     return out
 
 
+# ----------------------------------------------------------------- sex backfill (all cycles)
+# For 2004-2022 the winners are already in the dataset; only their SEX is missing. The layout
+# drifts year to year (M/F vs MALE/FEMALE; party before or after sex; COUNCILOR vs "MEMBER,
+# SANGGUNIANG BAYAN"), but SEX still ends each candidate and the name is the nearest preceding
+# comma line that isn't a position - so name + sex + position extract without province or party.
+SEX_TOK = {"M": "M", "F": "F", "MALE": "M", "FEMALE": "F"}
+_POS_PATTERNS = [
+    (r"VICE[ -]?MAYOR", "VICE MAYOR"), (r"\bMAYOR\b", "MAYOR"),
+    (r"SANGGUNIANG (BAYAN|PANLUNGSOD)|\bCOUNCILOR\b", "COUNCILOR"),
+    (r"VICE[ -]?GOVERNOR", "VICE GOVERNOR"), (r"\bGOVERNOR\b", "GOVERNOR"),
+    (r"SANGGUNIANG PANLALAWIGAN|BOARD MEMBER", "PROVINCIAL BOARD MEMBER"),
+    (r"HOUSE OF REPRESENTATIVES", "MEMBER, HOUSE OF REPRESENTATIVES"),
+]
+_JUNK_PREFIX_G = ("REPUBLIC", "COMMISSION", "INTRAMUROS", "RECORDS", "LIST OF", "PAGE ", "NOTICE",
+                  "ALL AUTHORIZED", "INCLUDING", "CONFORMITY", "PRIVACY", "ACCOUNT", "AND ITS",
+                  "SIMILARLY", "MAY ")
+_JUNK_LABELS_G = {"SEX", "NAME OF ELECTED CANDIDATES", "PARTY AFFILIATION", "PARTY AFILLIATION",
+                  "CITY / MUNICIPALITY", "POSITION / DISTRICT", "ELECTIVE POSITION", "DISTRICT",
+                  "PROVINCE", "REGION", "PROVINCE / CITY", "CITY/MUNICIPALITY"}
+
+
+def _match_pos(s):
+    for pat, canon in _POS_PATTERNS:
+        if re.search(pat, s):
+            return canon
+    return None
+
+
+def parse_sex(year):
+    """(year, canonical position, surname, given-first-token, M/F) for every winner in a cycle -
+    layout-agnostic, used only to backfill Sex onto rows we already have."""
+    import fitz
+    out = []
+    for cat in ("citymun", "provincial", "house"):
+        path = local_path(year, cat)
+        if not path.exists():
+            continue
+        doc = fitz.open(path)
+        position, buf = None, []
+        for p in range(doc.page_count):
+            for ln in doc[p].get_text().split("\n"):
+                s = _norm(ln)
+                if not s:
+                    continue
+                u = s.upper()
+                if u.startswith(_JUNK_PREFIX_G) or u in _JUNK_LABELS_G or ":" in s:
+                    continue
+                if u in SEX_TOK:
+                    nm = next((x for x in reversed(buf) if "," in x and not _match_pos(x)), None)
+                    if nm and position:
+                        last, rest = nm.split(",", 1)
+                        toks = _norm(rest).split()
+                        if last.strip() and toks:
+                            out.append((year, position, last.strip().upper(), toks[0].upper(), SEX_TOK[u]))
+                    buf = []
+                elif _match_pos(s) and ("," not in s or u.startswith("MEMBER,")):
+                    position, buf = _match_pos(s), []
+                else:
+                    buf.append(s)
+        doc.close()
+    return out
+
+
+def build_sex_lookup(years=(2004, 2007, 2010, 2013, 2016, 2019, 2022)):
+    """Two lookups the merge step fills Sex from: an exact (Year, Position, surname, given) map
+    where it is unambiguous, and a first-name -> Sex map for names that are gender-consistent
+    (>= 99% one sex) - which recovers spelling mismatches between the PDF and our rows."""
+    import csv
+    import collections
+    key_sex = collections.defaultdict(set)
+    given_sex = collections.defaultdict(collections.Counter)
+    for y in years:
+        for (yr, pos, last, given, sex) in parse_sex(y):
+            key_sex[(yr, pos, last, given)].add(sex)
+            given_sex[given][sex] += 1
+    proc = RAW.parents[1] / "processed"
+    with (proc / "sex_by_key.csv").open("w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["Year", "Position", "Last", "Given", "Sex"])
+        for (yr, pos, last, given), sx in key_sex.items():
+            if len(sx) == 1:
+                w.writerow([yr, pos, last, given, next(iter(sx))])
+    with (proc / "sex_by_given.csv").open("w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["Given", "Sex"])
+        for g, c in given_sex.items():
+            tot = sum(c.values())
+            top, n = c.most_common(1)[0]
+            if tot >= 5 and n / tot >= 0.99:
+                w.writerow([g, top])
+    print("wrote sex_by_key.csv + sex_by_given.csv")
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--download", action="store_true")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--dump", metavar="YEAR_CAT")
     ap.add_argument("--build", type=int, metavar="YEAR", help="write listelected_<year>.csv")
+    ap.add_argument("--sex-lookup", action="store_true", help="write the 2004-2022 Sex lookups")
     args = ap.parse_args()
     if args.download:
         download(force=args.force)
@@ -320,3 +414,5 @@ if __name__ == "__main__":
         dump(args.dump)
     if args.build:
         build(args.build)
+    if args.sex_lookup:
+        build_sex_lookup()
