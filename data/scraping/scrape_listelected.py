@@ -155,6 +155,84 @@ def parse_citymun(year):
     return rows
 
 
+PROV_POS = {"PROVINCIAL GOVERNOR", "PROVINCIAL VICE-GOVERNOR", "PROVINCIAL BOARD MEMBER"}
+
+
+def _region_fix(s, province):
+    """NCR is written as its district ('NCR - FOURTH DISTRICT'), which is the province-level
+    unit; keep the district as the province and file it under region NCR."""
+    if s.startswith("NCR"):
+        return (s if s != "NCR" else province), "NCR"
+    return province, s
+
+
+def parse_provincial(year):
+    """Governors, vice-governors and board members. Region sits in the page header (before the
+    province); the province precedes the first position; a board member's district trails him
+    as a bare rank number, which is skipped."""
+    import fitz
+    doc = fitz.open(local_path(year, "provincial"))
+    region = province = position = district = None
+    buf, rows = [], []
+    for s in _clean_lines(doc):
+        if _is_region(s):
+            province, region = _region_fix(s, province); buf = []
+        elif s in PROV_POS:
+            if buf:
+                province = buf[-1]
+            position, district, buf = s, None, []
+        elif _is_district(s):
+            district, buf = s, []
+        elif re.fullmatch(r"\d+", s):
+            continue
+        elif s in ("M", "F"):
+            party = buf[-1] if buf else ""
+            i = next((k for k, x in enumerate(buf[:-1]) if "," in x), None)
+            if i is not None:
+                rows.append({"year": year, "region": region, "province": province, "city": "",
+                             "position": position, "district": district or "",
+                             "name": " ".join(buf[:-1][i:]), "party": party, "sex": s})
+            buf = []
+        else:
+            buf.append(s)
+    doc.close()
+    return rows
+
+
+def parse_house(year):
+    """Members of the House of Representatives. One per legislative district; the district label
+    trails the candidate (ignored - the province/city is what the dataset keys on)."""
+    import fitz
+    doc = fitz.open(local_path(year, "house"))
+    region = province = None
+    buf, rows = [], []
+    for s in _clean_lines(doc):
+        if _is_region(s):
+            province, region = _region_fix(s, province); buf = []
+        elif _is_district(s):
+            buf = []
+        elif s in ("M", "F"):
+            party = buf[-1] if buf else ""
+            rest = buf[:-1]
+            i = next((k for k, x in enumerate(rest) if "," in x), None)
+            if i is not None:
+                if i > 0:
+                    province = rest[i - 1]
+                rows.append({"year": year, "region": region, "province": province, "city": "",
+                             "position": "MEMBER, HOUSE OF REPRESENTATIVES", "district": "",
+                             "name": " ".join(rest[i:]), "party": party, "sex": s})
+            buf = []
+        else:
+            buf.append(s)
+    doc.close()
+    return rows
+
+
+def parse_year(year):
+    """All elected candidates in one cycle, across the three category PDFs."""
+    return parse_citymun(year) + parse_provincial(year) + parse_house(year)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--download", action="store_true")
