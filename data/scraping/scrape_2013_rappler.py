@@ -107,8 +107,12 @@ def download(force=False):
 # come off the URL path, so a race is only kept from the page whose level it belongs to.
 LOCAL = {"MAYOR", "VICE-MAYOR", "VICE MAYOR", "COUNCILOR", "MEMBER, SANGGUNIANG BAYAN",
          "MEMBER, SANGGUNIANG PANLUNGSOD"}
-PROVINCIAL = {"GOVERNOR", "VICE-GOVERNOR", "VICE GOVERNOR", "PROVINCIAL BOARD MEMBER",
-              "MEMBER, SANGGUNIANG PANLALAWIGAN"}
+# Rappler labels the top provincial offices "PROVINCIAL GOVERNOR" / "PROVINCIAL VICE-GOVERNOR"
+# and the district seat "MEMBER, HOUSE OF REPRESENTATIVES" - all of which must be whitelisted
+# or governor (a province-level map race), vice-governor and the House are silently dropped.
+PROVINCIAL = {"GOVERNOR", "PROVINCIAL GOVERNOR", "VICE-GOVERNOR", "VICE GOVERNOR",
+              "PROVINCIAL VICE-GOVERNOR", "PROVINCIAL BOARD MEMBER",
+              "MEMBER, SANGGUNIANG PANLALAWIGAN", "MEMBER, HOUSE OF REPRESENTATIVES"}
 
 
 def _path_parts(url):
@@ -131,6 +135,9 @@ def _races(html):
         if not m:
             continue
         position = re.sub(r"\s+", " ", m.group(1)).strip().upper()
+        # "of KALINGA - FIRST PROVDIST" -> the qualifier keeps the district so House and
+        # multi-district provincial-board contests do not collapse into one merged race.
+        area = re.sub(r"\s+", " ", m.group(2)).strip().upper()
         rows = []
         for tr in tbl.select("tr"):
             cells = [re.sub(r"\s+", " ", td.get_text()).strip() for td in tr.select("td")]
@@ -140,7 +147,7 @@ def _races(html):
                 if votes.isdigit():
                     rows.append((name, cells[1].strip(), int(votes)))
         if rows:
-            out.append((position, rows))
+            out.append((position, area, rows))
     return out
 
 
@@ -154,7 +161,7 @@ def parse():
         if not url:
             continue
         parts = _path_parts(url)
-        for position, cands in _races(f.read_text(encoding="utf-8", errors="ignore")):
+        for position, area, cands in _races(f.read_text(encoding="utf-8", errors="ignore")):
             if len(parts) >= 3 and position in LOCAL:            # municipality page, municipal race
                 region, province, city = parts[0], parts[1], parts[2]
             elif len(parts) == 2 and position in PROVINCIAL:      # province page, provincial race
@@ -165,11 +172,12 @@ def parse():
                 continue
             for name, party, votes in cands:
                 rows.append({"year": 2013, "region": region, "province": province, "city": city,
-                             "position": position, "candidate_name": name, "party": party, "votes": votes})
+                             "position": position, "area": area, "candidate_name": name,
+                             "party": party, "votes": votes})
     out = RAW.parents[1] / "processed" / "rappler_2013.csv"
     with out.open("w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=["year", "region", "province", "city", "position",
-                                           "candidate_name", "party", "votes"])
+                                           "area", "candidate_name", "party", "votes"])
         w.writeheader()
         w.writerows(rows)
     print(f"parsed {len(rows):,} candidate-rows from {len(list(RAW.glob('*.html'))):,} pages -> {out.name}")

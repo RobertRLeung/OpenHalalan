@@ -329,6 +329,7 @@ def audit_alignment(winners):
     print("=" * 78)
 
     ballots = pd.read_csv(VOTE_COUNTS_CSV, low_memory=False)
+    vote_years = {int(y) for y in ballots["year"].dropna().unique()}
 
     def fold(value):
         text = unicodedata.normalize("NFKD", str(value))
@@ -366,12 +367,22 @@ def audit_alignment(winners):
                  f"source file, not the scrape")
 
     # Cycles in the winners set with no vote counts at all.
+    covered = sorted(vote_years)
     for year in YEARS:
-        if year not in VOTE_COUNT_YEARS:
+        if year not in vote_years:
             flag("alignment", "info", "no vote counts for this cycle", str(year),
                  f"{year} winners are inherited from the source file; the vote-count "
-                 f"dataset covers {VOTE_COUNT_YEARS}, so this cycle cannot be verified "
+                 f"dataset covers {covered}, so this cycle cannot be verified "
                  f"against ballots")
+
+    # Cycles that have vote counts, but only partially - 2013 is reconstructed from Rappler's
+    # archive at ~88% of municipalities, with governor and senator as aggregates rather than
+    # per-locality. A clean winners-vs-ballots match is not expected for it, so its alignment
+    # is reported but not asserted above.
+    for year in sorted(vote_years - set(VOTE_COUNT_YEARS)):
+        flag("alignment", "info", "partial vote counts for this cycle", str(year),
+             f"{year} vote counts are reconstructed from an archive at partial coverage, so "
+             f"a complete winners-vs-ballots check is not expected for this cycle")
 
 
 def main():

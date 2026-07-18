@@ -29,3 +29,10 @@ data/site/*.json
 data/site/*_report.txt
 data/site/.geo_cache/
 data/site/map_geo_prov/
+
+# Re-fetchable raw source caches (large). The committed parsers regenerate the processed
+# CSVs from these; the caches themselves are not published (188 MB of Wayback HTML, 27 MB
+# of COMELEC PDFs). launch_assets/ holds local launch media, also not part of the dataset.
+data/raw_data/rappler_2013/
+data/raw_data/comelec_lec/
+launch_assets/

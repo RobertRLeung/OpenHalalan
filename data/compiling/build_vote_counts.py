@@ -1,7 +1,7 @@
 """
 Consolidate the per-municipality COMELEC scrapes into one published vote-counts dataset.
 
-  data/raw_data/{2022,2025}/**/*.csv  ->  data/output/NLE_Vote_Counts_2022-2025.csv.gz
+  data/raw_data/{2022,2025}/**/*.csv  ->  data/output/NLE_Vote_Counts_2013-2025.csv.gz
 
 One row per candidate per office per locality: every candidate, winners and losers alike.
 Place names are canonicalised so a locality keeps one key across cycles, and the office is
@@ -17,7 +17,7 @@ import re
 
 import pandas as pd
 
-from config import OUTPUT, VOTE_COUNT_YEARS, VOTE_COUNTS_CSV, raw_dir
+from config import OUTPUT, PROCESSED, VOTE_COUNT_YEARS, VOTE_COUNTS_CSV, raw_dir
 from normalize import (
     NON_GEOGRAPHIC,
     canonical_city,
@@ -147,6 +147,55 @@ def split_position(position):
     return position_name, match.group(1).strip() if match else None
 
 
+# 2013 does not come from a COMELEC scrape - it is reconstructed from Rappler's archived
+# results (see data/scraping/scrape_2013_rappler.py). Its region/province/city arrive as URL
+# slugs, so they are decoded to the SAME canonical strings the other cycles already use.
+REGION_SLUG = {
+    "armm": "BARMM", "car": "CORDILLERA ADMINISTRATIVE REGION", "caraga": "REGION XIII",
+    "ncr": "NATIONAL CAPITAL REGION", "region-1": "REGION I", "region-2": "REGION II",
+    "region-3": "REGION III", "region-4a": "REGION IV A", "region-4b": "REGION IV B",
+    "region-5": "REGION V", "region-6": "REGION VI", "region-7": "REGION VII",
+    "region-8": "REGION VIII", "region-9": "REGION IX", "region-10": "REGION X",
+    "region-11": "REGION XI", "region-12": "REGION XII",
+}
+# Province slugs whose plain de-slugging is not the canonical name: NCR is filed under
+# "metropolitan-manila" (resolve_province needs "METRO MANILA" to recover the district from
+# the city), and Rappler names two provinces by their long form.
+PROV_SLUG_FIX = {"metropolitan-manila": "METRO MANILA", "north-cotabato": "COTABATO",
+                 "western-samar": "SAMAR"}
+
+
+def load_2013():
+    """Shape the 2013 Rappler archive into the same raw columns as a COMELEC scrape, so it
+    flows through the identical normalisation. The office is rebuilt into the location-laden
+    form split_position expects, carrying the House/board district that lives in `area`;
+    rank and percentage are computed per race (Rappler published neither)."""
+    src = PROCESSED / "rappler_2013.csv"
+    if not src.exists():
+        print("  (no rappler_2013.csv; skipping 2013)")
+        return None
+    d = pd.read_csv(src, dtype=str).fillna("")
+    unslug = lambda s: re.sub(r"[-_]+", " ", s).strip().upper()
+    out = pd.DataFrame({
+        "region": d["region"].map(lambda s: REGION_SLUG.get(s, "")),
+        "province": d["province"].map(lambda s: PROV_SLUG_FIX.get(s, unslug(s))),
+        "city": d["city"].map(unslug),
+        "position": [f"{p} of {a}" if a else p for p, a in zip(d["position"], d["area"])],
+        "candidate_name": d["candidate_name"],
+        "party": d["party"],
+        "votes": pd.to_numeric(d["votes"], errors="coerce").fillna(0).astype(int),
+    })
+    # A race is one office in one locality; the location-laden position string already keeps
+    # House and multi-district board contests apart.
+    race = ["province", "city", "position"]
+    tot = out.groupby(race)["votes"].transform("sum")
+    out["percentage"] = (100 * out["votes"] / tot.where(tot > 0)).round(2)
+    out["rank"] = out.groupby(race)["votes"].rank(ascending=False, method="min").astype(int)
+    out["year"] = 2013
+    print(f"  2013: Rappler archive -> {len(out):,} rows")
+    return out
+
+
 def load_year(year):
     files = sorted(raw_dir(year).rglob("*.csv"))
     if not files:
@@ -166,7 +215,11 @@ def load_year(year):
 
 def main():
     print("Loading raw scrapes:")
-    df = pd.concat([load_year(y) for y in VOTE_COUNT_YEARS], ignore_index=True)
+    frames = [load_year(y) for y in VOTE_COUNT_YEARS]
+    frame_2013 = load_2013()
+    if frame_2013 is not None:
+        frames.append(frame_2013)
+    df = pd.concat(frames, ignore_index=True)
 
     print("\nnormalising:")
     # Keep the source's raw string for traceability, but `position` becomes the canonical

@@ -1,7 +1,7 @@
-# Data Dictionary — `NLE_Vote_Counts_2016-2025.csv.gz`
+# Data Dictionary — `NLE_Vote_Counts_2013-2025.csv.gz`
 
 Every candidate's votes, **winners and losers alike**, per city and municipality.
-**1,681,279 rows, 20 columns.** Gzipped (39 MB uncompressed is well above GitHub's 50 MB
+**1,720,501 rows, 20 columns.** Gzipped (the uncompressed CSV is well above GitHub's 50 MB
 file limit, hence the compression). `pandas.read_csv` opens it directly.
 
 Built from the per-municipality scrapes in `data/raw_data/`, which remain in the repo as
@@ -11,25 +11,46 @@ the raw record. Rebuild with `python run_all.py`.
 
 ## Coverage
 
-**Temporal. Four cycles: 2016, 2019, 2022 and 2025.** There are no vote counts for
-2004–2013, so those winners cannot be checked against ballots. Extending coverage back to
-2010 is tracked in issue #3.
+**Temporal. Five cycles: 2013, 2016, 2019, 2022 and 2025.** 2013 is a partial cycle (see
+below); before it there are no vote counts, so 2001–2010 winners still cannot be checked
+against ballots.
 
 | Cycle | Rows | Municipality files | Source |
 |---|---|---|---|
+| 13 May 2013 | 38,878 | ~1,433 | Rappler (archived) |
 | 9 May 2016 | 361,947 | 1,633 | GMA Eleksyon |
 | 13 May 2019 | 389,092 | 1,634 | ABS-CBN Halalan |
 | 9 May 2022 | 504,814 | 1,634 | COMELEC |
-| 12 May 2025 | 425,426 | 1,638 | COMELEC |
+| 12 May 2025 | 425,770 | 1,638 | COMELEC |
 
-All three land on **1,634 Philippine cities and municipalities** (2025 adds the new BARMM
-Special Geographic Area municipalities), which is an independent check that none is missing
-localities.
+The 2016–2025 cycles each land on **1,634 Philippine cities and municipalities** (2025 adds
+the new BARMM Special Geographic Area municipalities), which is an independent check that
+none is missing localities. 2013 is an exception, described next.
 
-**This dataset is multi-source.** 2016 comes from GMA, 2019 from ABS-CBN, 2022 and 2025
-from COMELEC. **No cycle is covered by more than one source**, so there are no cross-source
-conflicts to reconcile — but that changes the moment a second source is added for a cycle
-that already has one.
+**2013 is a partial cycle, reconstructed from Rappler's archived results.** Rappler's 2013
+live-results site is gone; the Internet Archive preserved ~88% of its municipality pages,
+which is what this cycle is rebuilt from (`data/scraping/scrape_2013_rappler.py`). Read it
+with these limits in mind:
+
+- **Municipal races** (mayor, vice-mayor, councilor) cover **~1,433 of 1,634 municipalities
+  (88%)** — every candidate, winners and losers, with votes. The rest were not archived.
+- **Governor, vice-governor and House** are recorded only as a **province (or district)
+  total**, not broken down per municipality — Rappler published them that way. On the map,
+  2013 governor therefore colours the province directly rather than being summed from towns.
+- **Senator** is a single **national total** (33 candidates), with no per-locality breakdown,
+  so it is present in the data but does not appear on the map.
+- **No president, vice president or party list**: 2013 was a midterm, so those seats were
+  not contested.
+- Rappler published no percentage or rank, so both are **computed here** (share of the race
+  total; rank by votes within the race).
+
+Because 2013's races are not all per-locality and its coverage is 88%, do not treat its
+totals as complete the way the 2016–2025 cycles are.
+
+**This dataset is multi-source.** 2013 comes from Rappler, 2016 from GMA, 2019 from ABS-CBN,
+2022 and 2025 from COMELEC. **No cycle is covered by more than one source**, so there are no
+cross-source conflicts to reconcile — but that changes the moment a second source is added
+for a cycle that already has one.
 
 2016 also carries the **ARMM regional government** (`ARMM REGIONAL GOVERNOR`,
 `ARMM REGIONAL VICE GOVERNOR`, `ARMM ASSEMBLYMAN`), abolished when BARMM replaced ARMM in

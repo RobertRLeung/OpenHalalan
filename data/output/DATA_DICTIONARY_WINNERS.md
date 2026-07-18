@@ -32,7 +32,7 @@ races below, which have no province.
 
 **Nationwide races, 2016 onward.** `PRESIDENT` and `VICE PRESIDENT` (presidential cycles
 2016 and 2022) and `SENATOR` (all four ballot cycles) are also included, reconstructed from
-`NLE_Vote_Counts_2016-2025.csv.gz` by summing each candidate's votes across every locality —
+`NLE_Vote_Counts_2013-2025.csv.gz` by summing each candidate's votes across every locality —
 overseas and local-absentee ballots included — and taking the seats filled (1 president, 1
 vice president, 12 senators). These rows have no `Province`, `City` or `Region`. `PARTY LIST`
 is still held back: its winners are organisations, not people, and its seats need the BANAT
@@ -81,7 +81,7 @@ this data, not shipped inside it.
 
 | Cycles | Source |
 |---|---|
-| **2016, 2019, 2022, 2025** | **Derived from the ballots** in `NLE_Vote_Counts_2016-2025.csv.gz`: votes are summed within the jurisdiction that elects each seat, and the top candidate(s) win. Fully reproducible and independently checkable. |
+| **2016, 2019, 2022, 2025** | **Derived from the ballots** in `NLE_Vote_Counts_2013-2025.csv.gz`: votes are summed within the jurisdiction that elects each seat, and the top candidate(s) win. Fully reproducible and independently checkable. |
 | 2004–2013 | `data/source/political_dynasty_v8.5.csv`, inherited from the dynasty paper. Its own upstream provenance is undocumented, and it **cannot be verified** — no vote counts exist for those cycles. |
 
 **2019 was rebuilt from ballots because the inherited version was demonstrably wrong.**

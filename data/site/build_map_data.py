@@ -83,6 +83,10 @@ PROVINCE_ALIAS = {
     # COMELEC files Isabela City under Basilan; PSGC makes it its own adm2 unit, and it is
     # not the province of Isabela in Luzon.
     "BASILAN":             ["1900700000", "0990100000"],
+    # Davao Occidental was carved out of Davao del Sur by a plebiscite in October 2013, AFTER
+    # the May 2013 election - so the 2013 archive files its five municipalities under Davao
+    # del Sur. Look for pre-split localities in both halves (cf. Maguindanao).
+    "DAVAO DEL SUR":       ["1102400000", "1108600000"],
 }
 
 # Spellings and renames the cascade cannot reach on its own. A bare key applies anywhere;
@@ -98,6 +102,7 @@ CITY_ALIAS = {
     "BACUNGAN": "Leon T. Postigo",                 # renamed 2005; 2016 still said Bacungan
     "PIO V CORPUZ": "Pio V. Corpus",               # the PSA spells it with an s
     ("LANAO DEL SUR", "TAGOLOAN"): "Tagoloan II",  # not Tagoloan, Misamis Oriental
+    ("DAVAO DEL NORTE", "SAMAL"): "Island Garden City of Samal",  # not Samal, Bataan
 }
 
 
@@ -214,7 +219,12 @@ def main():
     say(f"  {len(df):,} candidate-rows across {df.city.nunique():,} locality names")
 
     # --- resolve every (province, city) once ------------------------------------------
-    pairs = df[["province", "city"]].drop_duplicates()
+    # Only real localities (a non-blank city) go through the city crosswalk. Rows the source
+    # reports without a locality - the 2013 archive carries governor as a province total and
+    # senator as a national one - are placed separately below, so they are never counted as
+    # city-resolution failures here.
+    has_city = df.city.notna() & (df.city.astype(str).str.strip() != "")
+    pairs = df[has_city][["province", "city"]].drop_duplicates()
     xwalk, unresolved = {}, []
     for _, r in pairs.iterrows():
         scopes = province_scopes(r.province)
@@ -236,13 +246,31 @@ def main():
                         on=["province", "city"])
         say(f"\n{len(unresolved)} UNRESOLVED - {lost.votes.sum():,} votes "
             f"({100 * lost.votes.sum() / df.votes.sum():.3f}% of the total) left off the map:")
-        for prov, city in sorted(unresolved):
+        for prov, city in sorted(unresolved, key=lambda t: (str(t[0]), str(t[1]))):
             v = lost[(lost.province == prov) & (lost.city == city)].votes.sum()
             say(f"   {prov:<28} {city:<28} {v:>12,} votes")
 
     # --- one row per (year, race, locality) -------------------------------------------
     df["psgc"] = [xwalk.get((p, c)) for p, c in zip(df.province, df.city)]
-    df = df[df.psgc.notna()]
+    local = df[df.psgc.notna()].copy()
+    # The province a locality is drawn inside. Not the province COMELEC files it under:
+    # Cebu City's votes belong in Cebu's provincial total on the map even though PSGC makes
+    # the city its own adm2 unit.
+    local["prov"] = local.psgc.map(lambda p: lgus[p]["prov"])
+
+    # A province-level office the source reports only as a province total (a blank city):
+    # 2013 governor is one figure per province, with no per-locality breakdown to aggregate,
+    # so it is placed straight onto its adm2 unit - the primary one where a province later
+    # split (the old Davao del Sur total belongs to Davao del Sur, not the Davao Occidental
+    # that did not yet exist).
+    def prov_scope(name):
+        scopes = province_scopes(name)
+        return scopes[0] if scopes else None
+
+    blank_city = df.city.isna() | (df.city.astype(str).str.strip() == "")
+    ptot = df[blank_city & df.position.isin(PROVINCE_LEVEL) & df.province.notna()].copy()
+    ptot["prov"] = ptot.province.map(prov_scope)
+    ptot = ptot[ptot.prov.notna()]
 
     cands, cand_index = [], {}
 
@@ -253,13 +281,15 @@ def main():
             cands.append([name, party if isinstance(party, str) else ""])
         return cand_index[key]
 
-    # The province a locality is drawn inside. Not the province COMELEC files it under:
-    # Cebu City's votes belong in Cebu's provincial total on the map even though PSGC makes
-    # the city its own adm2 unit.
-    df["prov"] = df.psgc.map(lambda p: lgus[p]["prov"])
-
     races, cells, pcells = [], [], []
     race_index = {}
+
+    def race_id(year, pos):
+        key = (int(year), pos)
+        if key not in race_index:
+            race_index[key] = len(races)
+            races.append([int(year), pos])
+        return race_index[key]
 
     def tally_of(frame):
         t = (frame.groupby(["candidate_name", "party"], as_index=False)["votes"].sum()
@@ -270,9 +300,8 @@ def main():
         return total, [[cid(r.candidate_name, r.party), int(r.votes)]
                        for r in t.head(TOP_N).itertuples()]
 
-    for (year, pos), grp in df.groupby(["year", "position"], sort=True):
-        race_index[f"{year}|{pos}"] = ri = len(races)
-        races.append([int(year), pos])
+    for (year, pos), grp in local.groupby(["year", "position"], sort=True):
+        ri = race_id(year, pos)
 
         for psgc, loc in grp.groupby("psgc"):
             t = tally_of(loc)
@@ -287,6 +316,18 @@ def main():
                 t = tally_of(loc)
                 if t:
                     pcells.append([ri, prov, t[0], t[1]])
+
+    # Province-total rows fill only the (race, province) slots that locality aggregation did
+    # not already cover, so a cycle with real per-locality data is never double-counted.
+    have_pcell = {(c[0], c[1]) for c in pcells}
+    for (year, pos), grp in ptot.groupby(["year", "position"], sort=True):
+        ri = race_id(year, pos)
+        for prov, loc in grp.groupby("prov"):
+            if (ri, prov) in have_pcell:
+                continue
+            t = tally_of(loc)
+            if t:
+                pcells.append([ri, prov, t[0], t[1]])
 
     say(f"\n{len(races)} races, {len(cells):,} locality-races, "
         f"{len(pcells):,} province-races, {len(cands):,} candidates")
