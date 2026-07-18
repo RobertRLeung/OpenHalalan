@@ -25,7 +25,7 @@
   "@context": "https://schema.org",
   "@type": "Dataset",
   "name": "OpenHalalan: The Philippine National and Local Election Dataset",
-  "description": "Philippine national and local election data, released as a single bundle of two interdependent datasets. NLE_Winners_2004-2025 records every winning candidate for the seven local and district offices (governor, vice governor, provincial board member, member of the House of Representatives, mayor, vice mayor, councilor) across nine election cycles. NLE_Vote_Counts_2016-2025 records every candidate's votes, winners and losers alike, per city and municipality, for 2016, 2019, 2022 and 2025 - including the nationwide races (president, vice president, senator, party list) and the BARMM parliament. The two are released together because they are not independent: the 2019, 2022 and 2025 winners are derived from the vote counts. Everything is reproducible from the committed raw scrapes with a single command (python run_all.py), and a completeness audit ships with the data.",
+  "description": "Philippine national and local election data, released as a single bundle of two interdependent datasets. NLE_Winners_2004-2025 records every winning candidate for the seven local and district offices (governor, vice governor, provincial board member, member of the House of Representatives, mayor, vice mayor, councilor) across nine election cycles. NLE_Vote_Counts_2013-2025 records every candidate's votes, winners and losers alike, per city and municipality, for 2013 (partial, from Rappler's archive), 2016, 2019, 2022 and 2025 - including the nationwide races (president, vice president, senator, party list) and the BARMM parliament. The two are released together because they are not independent: the 2019, 2022 and 2025 winners are derived from the vote counts. Everything is reproducible from the committed raw scrapes with a single command (python run_all.py), and a completeness audit ships with the data.",
   "url": "https://robertrleung.github.io/OpenHalalan/",
   "license": "https://opendatacommons.org/licenses/odbl/1-0/",
   "creator": [
@@ -157,6 +157,11 @@
   .dyn-opt{ border-bottom:1px solid var(--line); }
   .dyn-opt:last-child{ border-bottom:0; }
   .dyn-opt:hover, .dyn-opt.is-active{ background:rgba(240,240,240,0.06); }
+  /* A clan member who actually held a seat in the selected year: gold dot + name, with the
+     matching term highlighted. Ties the family panel to the year selector. */
+  .dyn-now{ font-weight:600; color:var(--ink); }
+  .dyn-now::before{ content:"●"; color:var(--gold); font-size:8px; vertical-align:middle; margin-right:6px; }
+  .dyn-inyear{ background:rgba(194,64,74,0.22); color:var(--ink); border-radius:2px; padding:0 3px; font-weight:600; }
   .fam-hi{ outline:2px solid var(--stamp); outline-offset:4px; border-radius:4px; }
   .prov-line{fill:none; stroke:rgba(255,255,255,0.9);
              stroke-width:var(--prov-stroke, 0.9);
@@ -241,9 +246,9 @@
           </div>
           <svg class="tally-svg" width="90" height="20" viewBox="0 0 90 20"></svg>
         </div>
-        <div class="tally-row" data-target="4" data-suffix="" data-label="Vote counts dataset · cycles 2016–2025">
+        <div class="tally-row" data-target="5" data-suffix="" data-label="Vote counts dataset · cycles 2013–2025">
           <div class="flex justify-between items-baseline mb-1">
-            <span class="text-sm">Vote counts dataset · cycles 2016–2025</span>
+            <span class="text-sm">Vote counts dataset · cycles 2013–2025</span>
             <span class="font-mono text-2xl font-medium tally-value">0</span>
           </div>
           <svg class="tally-svg" width="90" height="20" viewBox="0 0 90 20"></svg>
@@ -389,7 +394,7 @@
     <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--gold)] mb-3">Map</p>
     <h2 class="font-display font-semibold text-3xl md:text-4xl mb-3">Map the count.</h2>
     <p class="text-lg text-[var(--ink-soft)] max-w-3xl leading-relaxed mb-8">
-      Every city and municipality that reported a ballot from 2016 to 2025, 1,642 in all,
+      Every city and municipality that reported a ballot from 2013 to 2025, 1,642 in all,
       joined to their boundaries on PSGC code rather than on name. Click a province to go
       in, then a municipality to read its full tally.
     </p>
@@ -596,7 +601,7 @@
         <p class="text-base text-[var(--ink-soft)] leading-relaxed mb-5">Two files, straight to your machine. They mirror the latest version on GitHub, so every fix and every new cycle lands here automatically — no navigating the repo.</p>
         <div class="flex flex-wrap gap-3">
           <a href="https://github.com/RobertRLeung/OpenHalalan/releases/download/data-latest/NLE_Winners_2004-2025.csv" class="btn-primary inline-block px-5 py-2.5 rounded-sm font-mono text-sm">Winners, 2001–2025 (13 MB) ↓</a>
-          <a href="https://github.com/RobertRLeung/OpenHalalan/releases/download/data-latest/NLE_Vote_Counts_2016-2025.csv.gz" class="btn-primary inline-block px-5 py-2.5 rounded-sm font-mono text-sm">Vote counts, 2016–2025 (39 MB) ↓</a>
+          <a href="https://github.com/RobertRLeung/OpenHalalan/releases/download/data-latest/NLE_Vote_Counts_2013-2025.csv.gz" class="btn-primary inline-block px-5 py-2.5 rounded-sm font-mono text-sm">Vote counts, 2013–2025 (40 MB) ↓</a>
         </div>
         <p class="font-mono text-xs mt-4 hidden" id="dl-count-line">
           <span style="color:var(--stamp)" id="dl-count">0</span><span class="text-[var(--ink-soft)]"> downloads and counting</span>
@@ -745,12 +750,15 @@ const title = s => s.replace(/\w\S*/g, w => w[0] + w.slice(1).toLowerCase())
 // region shows you its municipalities instead - which is the honest answer to "how did
 // CAR vote for mayor" anyway.
 const canAggregate = () => MAP.data.provinceLevel.includes(elRace.value);
-const unit = () => (MAP.region && !MAP.prov && canAggregate()) ? "prov" : "lgu";
+// Province view when a region is opened for an aggregatable race, OR when the race is
+// province-only (no municipal data to show) - the latter holds at every zoom, including
+// the whole country, so 2013 governor draws as a province choropleth rather than blank.
+const unit = () => (canAggregate() && ((MAP.provOnly && MAP.provOnly.has(MAP.race)) || (MAP.region && !MAP.prov))) ? "prov" : "lgu";
 
 /** The features currently being coloured. */
 function activeFeatures(){
   if(unit() === "prov")
-    return provFeatures.filter(f => f.properties.r === MAP.region);
+    return MAP.region ? provFeatures.filter(f => f.properties.r === MAP.region) : provFeatures;
   if(MAP.prov)
     return lguFeatures.filter(f => f.properties.p === MAP.prov);
   if(MAP.region)
@@ -768,6 +776,11 @@ function loadMap(){
   ]).then(([geo, data]) => {
     MAP.geo = geo;
     MAP.data = data;
+    // Races that exist only as province totals, with no per-locality breakdown - 2013 governor,
+    // which Rappler reported as a province figure. They colour the province polygons directly,
+    // even at the national zoom, instead of a municipal layer they have no data for.
+    const withCells = new Set(data.cells.map(c => c[0]));
+    MAP.provOnly = new Set(data.pcells.map(c => c[0]).filter(ri => !withCells.has(ri)));
     document.getElementById("map-loading").remove();
     initMap();
   }).catch(() => {
@@ -1611,16 +1624,19 @@ function initDyn(geo){
       .map(([id, n]) => `<option value="${id}">${n}</option>`).join("");
   dFillProvinces();
 
-  dYear.addEventListener("change", () => { DYN.year = +dYear.value; dDraw(); });
+  // Re-render an open family panel in place (year/match/mode changed but the scope did not),
+  // so its "in office this year" highlight and family-held share follow the selectors.
+  const dReplay = () => { const d = DYN.detail; if(d) dDetailFor(d.level, d.unit, d.name, d.provOfUnit, d.highlight); };
+  dYear.addEventListener("change", () => { DYN.year = +dYear.value; dDraw(); dReplay(); });
   dRegion.addEventListener("change", () => dOpen(dRegion.value || null, null));
   dProv.addEventListener("change", () => {
     const p = dProv.value || null;
     dOpen(p ? DYN.geo.adm2[p].r : DYN.region, p);
   });
   document.querySelectorAll("#dyn-mode .mode-btn").forEach(b =>
-    b.addEventListener("click", () => { DYN.mode = b.dataset.mode; dDraw(); }));
+    b.addEventListener("click", () => { DYN.mode = b.dataset.mode; dDraw(); dReplay(); }));
   document.querySelectorAll("#dyn-match .match-btn").forEach(b =>
-    b.addEventListener("click", () => { DYN.match = b.dataset.match; dDraw(); }));
+    b.addEventListener("click", () => { DYN.match = b.dataset.match; dDraw(); dReplay(); }));
   document.getElementById("dyn-reset").addEventListener("click", () => dOpen(null, null));
 
   dBuildSearch();
@@ -1651,6 +1667,7 @@ function dFillProvinces(){
 function dOpen(region, prov){
   DYN.region = region || null;
   DYN.prov = prov || null;
+  DYN.detail = null;   // a scope change drops any open family panel; nothing to re-render
   dRegion.value = DYN.region || "";
   dFillProvinces();
   dDraw();
@@ -1724,7 +1741,7 @@ function dLegendDraw(){
   const gap = (dLevel() === "municipality" && DYN.year < 2016)
             ? " Municipality-level data begins in 2016; earlier years show none." : "";
   document.getElementById("dyn-legend-note").textContent =
-    `Share of each ${word}'s ${DYN.year} winning candidates in a ${rel}.` + via + gap;
+    `Share of each ${word}'s ${DYN.year} winning candidates coming from a ${rel}.` + via + gap;
   const edges = [0, ...DBANDS, 1];
   dLegend.innerHTML = DRAMP.map((c, i) =>
     `<li class="flex items-center gap-2">
@@ -1776,6 +1793,9 @@ function dOff(){ dtip.classList.add("hidden"); }
 
 // ---------- detail: the families themselves ----------
 function dDetailFor(level, unit, name, provOfUnit, highlight){
+  // Remember what is open so the panel can re-render when the year (or match/mode) changes -
+  // that is what keeps the "in office this year" highlight in step with the year selector.
+  DYN.detail = {level, unit, name, provOfUnit, highlight};
   const cell = DYN.byUnit.get(unit);
   const fams = (DYN.clans[level] || {})[unit] || [];
   const parent = level === "municipality"
@@ -1789,6 +1809,7 @@ function dDetailFor(level, unit, name, provOfUnit, highlight){
     return;
   }
   const v = dShare(cell);
+  const anyNow = fams.some(f => f.members.some(m => m.seats.some(([y]) => y === DYN.year)));
   const tag = f =>
     (f.thin ? `<span class="pct-tab text-[10px] px-1.5 py-0.5 rounded-sm" style="border:1px solid var(--line)">thin</span>` : "")
   + (f.fat  ? ` <span class="pct-tab text-[10px] px-1.5 py-0.5 rounded-sm" style="border:1px solid var(--stamp);color:var(--stamp)">fat</span>` : "");
@@ -1800,8 +1821,13 @@ function dDetailFor(level, unit, name, provOfUnit, highlight){
         </div>
         <p class="font-mono text-[11px] text-[var(--ink-soft)] mb-1">${f.people} people · ${f.seats} seats</p>
         <ul class="text-xs text-[var(--ink-soft)] space-y-0.5">
-          ${f.members.map(m => `<li><span class="text-[var(--ink)]">${m.name}</span> · ${
-            m.seats.map(([y, o]) => `${o} ’${String(y).slice(2)}`).join(", ")}</li>`).join("")}
+          ${f.members.map(m => {
+            const now = m.seats.some(([y]) => y === DYN.year);
+            const seats = m.seats.map(([y, o]) =>
+              y === DYN.year ? `<span class="dyn-inyear">${o} ’${String(y).slice(2)}</span>`
+                             : `${o} ’${String(y).slice(2)}`).join(", ");
+            return `<li><span class="${now ? "dyn-now" : "text-[var(--ink)]"}">${m.name}</span> · ${seats}</li>`;
+          }).join("")}
           ${f.more ? `<li class="italic">+ ${f.more} more</li>` : ""}
         </ul>
       </li>`;
@@ -1811,7 +1837,8 @@ function dDetailFor(level, unit, name, provOfUnit, highlight){
   dDetail.innerHTML = `
     <p class="font-display font-semibold text-lg leading-tight">${name}</p>
     <p class="text-xs text-[var(--ink-soft)] mb-1">${parent}</p>
-    <p class="font-mono text-xs text-[var(--ink-soft)] mb-4">${dPct(v)} of seats family-held · ${fams.length} ${fams.length===1?"family":"families"}</p>
+    <p class="font-mono text-xs text-[var(--ink-soft)] ${anyNow ? "mb-1" : "mb-4"}">${dPct(v)} of seats family-held · ${fams.length} ${fams.length===1?"family":"families"}</p>
+    ${anyNow ? `<p class="font-mono text-[10px] text-[var(--ink-soft)] mb-4"><span style="color:var(--gold)">●</span> held a seat in ${DYN.year}</p>` : ""}
     <ul class="space-y-4">${head.map(famLi).join("")}</ul>
     ${rest.length ? `
       <ul id="dyn-fam-rest" class="space-y-4 mt-4 hidden">${rest.map(famLi).join("")}</ul>
