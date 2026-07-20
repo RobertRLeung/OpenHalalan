@@ -175,6 +175,19 @@ def load_2013():
         print("  (no rappler_2013.csv; skipping 2013)")
         return None
     d = pd.read_csv(src, dtype=str).fillna("")
+    # Rappler's /2010/ result pages were only archived in 2016-2018, by which time the site
+    # served 2013 content at those URLs (no presidential race on a 2010 presidential-year page;
+    # values byte-match /2013/; province governors are the 2013 winners). They therefore
+    # RECOVER 2013 municipalities that /2013/ never archived - Ilocos Sur, Cagayan, Antique.
+    # Merge municipalities not already present; primary /2013/ wins any overlap.
+    mirror = PROCESSED / "rappler_2013_mirror.csv"
+    if mirror.exists():
+        m = pd.read_csv(mirror, dtype=str).fillna("")
+        have = set(zip(d["province"], d["city"]))
+        m = m[[(p, c) not in have for p, c in zip(m["province"], m["city"])]]
+        if len(m):
+            d = pd.concat([d, m], ignore_index=True)
+            print(f"  2013: +{m.groupby(['province','city']).ngroups} municipalities from the /2010/-URL 2013 mirror")
     unslug = lambda s: re.sub(r"[-_]+", " ", s).strip().upper()
     out = pd.DataFrame({
         "region": d["region"].map(lambda s: REGION_SLUG.get(s, "")),
@@ -197,10 +210,12 @@ def load_2013():
 
 
 def load_2010():
-    """2010 is a national-race-only cycle (president, vice president, senator), recovered from
-    a municipal tabulation and reshaped by data/scraping/parse_2010.py. Its region/province/
-    city already use COMELEC's naming, so it needs no slug decoding - only the same raw-column
-    shaping the other cycles get, with rank and percentage computed per locality per office."""
+    """2010 is a NATIONAL-race-only cycle here (president, vice president, senator), from the
+    Ianmaps municipal tabulation reshaped by parse_2010.py. COMELEC naming, computed rank/%.
+
+    (No local races: Rappler's /2010/ pages were only archived in 2016-2018, by which time the
+    site served 2013 content at those URLs - verified by the absence of any presidential race
+    on a 2010 presidential-year page - so they are 2013 data, not 2010, and are not used here.)"""
     src = PROCESSED / "national_2010.csv"
     if not src.exists():
         print("  (no national_2010.csv; skipping 2010)")
@@ -210,15 +225,11 @@ def load_2010():
     # "METRO MANILA" to recover the district from the city (cf. PROV_SLUG_FIX for 2013).
     province = d["province"].str.replace(r"(?i)^national capital region.*", "METRO MANILA", regex=True)
     out = pd.DataFrame({
-        "region": d["region"],
-        "province": province,
-        "city": d["city"],
-        # location-laden form for split_position; there is no district on a national race
+        "region": d["region"], "province": province, "city": d["city"],
         "position": [f"{p} of PHILIPPINES" for p in d["position"]],
-        # The source is mixed-case ("Benigno Simeon III C."); upper-case it so 2010 matches
-        # the ALL-CAPS convention every other feed already uses (standardize_name preserves case).
+        # the source is mixed-case; upper-case it to match every other feed's ALL-CAPS
         "candidate_name": d["candidate_name"].str.upper(),
-        "party": "",                      # the source carries no party affiliation
+        "party": "",                      # the national source carries no party affiliation
         "votes": pd.to_numeric(d["votes"], errors="coerce").fillna(0).astype(int),
     })
     race = ["province", "city", "position"]

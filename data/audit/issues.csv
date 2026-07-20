@@ -19,7 +19,7 @@ winners,medium,same person listed twice for one seat,2013,"20 rows in 2013 share
 winners,medium,same person listed twice for one seat,2004,"18 rows in 2004 share a (Province, Position, Full Name) with another row"
 winners,medium,same person listed twice for one seat,2007,"20 rows in 2007 share a (Province, Position, Full Name) with another row"
 winners,medium,same person listed twice for one seat,2010,"16 rows in 2010 share a (Province, Position, Full Name) with another row"
-votecounts,low,party missing,all cycles,"119,996 of 885,587 person-candidate rows (13.55%) have no party. Party-list groups are excluded: they have no party because they ARE the party"
+votecounts,low,party missing,all cycles,"119,996 of 886,998 person-candidate rows (13.53%) have no party. Party-list groups are excluded: they have no party because they ARE the party"
 alignment,info,partial vote counts for this cycle,2010,"2010 vote counts are reconstructed from an archive at partial coverage, so a complete winners-vs-ballots check is not expected for this cycle"
 votecounts,info,non-geographic tally category,AMERICAS,"780 rows (1,510,244 votes) under 'AMERICAS' - a nationwide tally, not a place. Offices: PARTY LIST, PRESIDENT, SENATOR, VICE PRESIDENT. Excluded from geographic aggregation via is_geographic=False"
 votecounts,info,non-geographic tally category,ASIA PACIFIC,"2,600 rows (3,023,432 votes) under 'ASIA PACIFIC' - a nationwide tally, not a place. Offices: PARTY LIST, PRESIDENT, SENATOR, VICE PRESIDENT. Excluded from geographic aggregation via is_geographic=False"

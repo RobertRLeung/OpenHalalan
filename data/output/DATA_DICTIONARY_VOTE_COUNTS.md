@@ -1,7 +1,7 @@
 # Data Dictionary — `NLE_Vote_Counts_2010-2025.csv.gz`
 
 Every candidate's votes, **winners and losers alike**, per city and municipality.
-**1,840,430 rows, 20 columns.** Gzipped (the uncompressed CSV is well above GitHub's 50 MB
+**1,841,841 rows, 20 columns.** Gzipped (the uncompressed CSV is well above GitHub's 50 MB
 file limit, hence the compression). `pandas.read_csv` opens it directly.
 
 Built from the per-municipality scrapes in `data/raw_data/`, which remain in the repo as
@@ -18,7 +18,7 @@ be checked against ballots.
 | Cycle | Rows | Municipality files | Source |
 |---|---|---|---|
 | 10 May 2010 | 119,929 | ~1,519 | Ianmaps Election Bank † |
-| 13 May 2013 | 38,878 | ~1,433 | Rappler (archived) |
+| 13 May 2013 | 40,289 | ~1,498 | Rappler (archived) †† |
 | 9 May 2016 | 361,947 | 1,633 | GMA Eleksyon |
 | 13 May 2019 | 389,092 | 1,634 | ABS-CBN Halalan |
 | 9 May 2022 | 504,814 | 1,634 | COMELEC |
@@ -27,6 +27,11 @@ be checked against ballots.
 > † The 2010 municipal results were shared from the **Ianmaps Election Bank**, compiled by
 > **Ian ([@ian_maps](https://twitter.com/ian_maps))** and **Joseph Ricafort
 > ([@josephricafort](https://twitter.com/josephricafort))**. With thanks.
+>
+> †† 2013 is drawn from **two Rappler mirrors**: the `/2013/` pages (`scrape_2013_rappler.py`)
+> plus the `/2013`-content pages the site later served at `/2010/` URLs
+> (`scrape_2013_mirror.py`), which recover 65 municipalities — Ilocos Sur, Cagayan, Antique —
+> that `/2013/` never archived. (2010 itself stays national-only, above.)
 
 The 2016–2025 cycles each land on **1,634 Philippine cities and municipalities** (2025 adds
 the new BARMM Special Geographic Area municipalities), which is an independent check that
@@ -41,12 +46,10 @@ The national totals check out against the known result — Aquino wins the presi
 edges Roxas for vice president, Revilla tops the Senate.
 
 **2013 is a partial cycle, reconstructed from Rappler's archived results.** Rappler's 2013
-live-results site is gone; the Internet Archive preserved ~88% of its municipality pages,
-which is what this cycle is rebuilt from (`data/scraping/scrape_2013_rappler.py`). Read it
+live-results site is gone; the Internet Archive preserved ~91% of its municipality pages across two mirrors (see †† above), which is what this cycle is rebuilt from. Read it
 with these limits in mind:
 
-- **Municipal races** (mayor, vice-mayor, councilor) cover **~1,433 of 1,634 municipalities
-  (88%)** — every candidate, winners and losers, with votes. The rest were not archived.
+- **Municipal races** (mayor, vice-mayor, councilor) cover **~1,498 of 1,634 municipalities (91%)** — every candidate, winners and losers, with votes. The rest were not archived.
 - **Governor, vice-governor and House** are recorded only as a **province (or district)
   total**, not broken down per municipality — Rappler published them that way. On the map,
   2013 governor therefore colours the province directly rather than being summed from towns.
@@ -57,7 +60,7 @@ with these limits in mind:
 - Rappler published no percentage or rank, so both are **computed here** (share of the race
   total; rank by votes within the race).
 
-Because 2013's races are not all per-locality and its coverage is 88%, do not treat its
+Because 2013's races are not all per-locality and its coverage is 91%, do not treat its
 totals as complete the way the 2016–2025 cycles are.
 
 **This dataset is multi-source.** 2010 comes from the Ianmaps Election Bank, 2013 from
