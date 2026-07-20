@@ -1,7 +1,7 @@
 """
 Consolidate the per-municipality COMELEC scrapes into one published vote-counts dataset.
 
-  data/raw_data/{2022,2025}/**/*.csv  ->  data/output/NLE_Vote_Counts_2013-2025.csv.gz
+  data/raw_data/{2022,2025}/**/*.csv  ->  data/output/NLE_Vote_Counts_2010-2025.csv.gz
 
 One row per candidate per office per locality: every candidate, winners and losers alike.
 Place names are canonicalised so a locality keeps one key across cycles, and the office is
@@ -196,6 +196,38 @@ def load_2013():
     return out
 
 
+def load_2010():
+    """2010 is a national-race-only cycle (president, vice president, senator), recovered from
+    a municipal tabulation and reshaped by data/scraping/parse_2010.py. Its region/province/
+    city already use COMELEC's naming, so it needs no slug decoding - only the same raw-column
+    shaping the other cycles get, with rank and percentage computed per locality per office."""
+    src = PROCESSED / "national_2010.csv"
+    if not src.exists():
+        print("  (no national_2010.csv; skipping 2010)")
+        return None
+    d = pd.read_csv(src, dtype=str).fillna("")
+    # NCR is filed as "NATIONAL CAPITAL REGION [- METRO MANILA]"; resolve_province needs
+    # "METRO MANILA" to recover the district from the city (cf. PROV_SLUG_FIX for 2013).
+    province = d["province"].str.replace(r"(?i)^national capital region.*", "METRO MANILA", regex=True)
+    out = pd.DataFrame({
+        "region": d["region"],
+        "province": province,
+        "city": d["city"],
+        # location-laden form for split_position; there is no district on a national race
+        "position": [f"{p} of PHILIPPINES" for p in d["position"]],
+        "candidate_name": d["candidate_name"],
+        "party": "",                      # the source carries no party affiliation
+        "votes": pd.to_numeric(d["votes"], errors="coerce").fillna(0).astype(int),
+    })
+    race = ["province", "city", "position"]
+    tot = out.groupby(race)["votes"].transform("sum")
+    out["percentage"] = (100 * out["votes"] / tot.where(tot > 0)).round(2)
+    out["rank"] = out.groupby(race)["votes"].rank(ascending=False, method="min").astype(int)
+    out["year"] = 2010
+    print(f"  2010: national municipal results -> {len(out):,} rows")
+    return out
+
+
 def load_year(year):
     files = sorted(raw_dir(year).rglob("*.csv"))
     if not files:
@@ -216,9 +248,9 @@ def load_year(year):
 def main():
     print("Loading raw scrapes:")
     frames = [load_year(y) for y in VOTE_COUNT_YEARS]
-    frame_2013 = load_2013()
-    if frame_2013 is not None:
-        frames.append(frame_2013)
+    for extra in (load_2010(), load_2013()):
+        if extra is not None:
+            frames.append(extra)
     df = pd.concat(frames, ignore_index=True)
 
     print("\nnormalising:")

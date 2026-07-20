@@ -7,7 +7,7 @@ on:
     branches: [main]
     paths:
       - "data/output/NLE_Winners_2004-2025.csv"
-      - "data/output/NLE_Vote_Counts_2013-2025.csv.gz"
+      - "data/output/NLE_Vote_Counts_2010-2025.csv.gz"
   workflow_dispatch:
 
 permissions:
@@ -36,5 +36,5 @@ jobs:
           git push
           gh release upload data-latest \
             data/output/NLE_Winners_2004-2025.csv \
-            data/output/NLE_Vote_Counts_2013-2025.csv.gz \
+            data/output/NLE_Vote_Counts_2010-2025.csv.gz \
             --clobber

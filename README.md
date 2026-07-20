@@ -18,10 +18,11 @@ Governor, Provincial Board Member, Member of the House of Representatives, Mayor
 Mayor, Councilor. **It contains no nationwide races** — no President, Vice President,
 Senator or Party List.
 
-**2. Vote Counts** — `data/output/NLE_Vote_Counts_2013-2025.csv.gz`
-Every candidate's votes, winners and losers alike, per city and municipality. Five cycles:
-**2013, 2016, 2019, 2022 and 2025** — 2013 is partial (archived from Rappler; see its data
-dictionary). These *do* include the nationwide races.
+**2. Vote Counts** — `data/output/NLE_Vote_Counts_2010-2025.csv.gz`
+Every candidate's votes, winners and losers alike, per city and municipality. Six cycles:
+**2010, 2013, 2016, 2019, 2022 and 2025**. 2010 (national races only, from the Ianmaps
+Election Bank) and 2013 (from Rappler) are partial — see the data dictionary. These *do*
+include the nationwide races.
 
 Full column definitions, coverage and known gaps:
 [winners](data/output/DATA_DICTIONARY_WINNERS.md) · [vote counts](data/output/DATA_DICTIONARY_VOTE_COUNTS.md)

@@ -1,7 +1,7 @@
-# Data Dictionary — `NLE_Vote_Counts_2013-2025.csv.gz`
+# Data Dictionary — `NLE_Vote_Counts_2010-2025.csv.gz`
 
 Every candidate's votes, **winners and losers alike**, per city and municipality.
-**1,720,501 rows, 20 columns.** Gzipped (the uncompressed CSV is well above GitHub's 50 MB
+**1,840,430 rows, 20 columns.** Gzipped (the uncompressed CSV is well above GitHub's 50 MB
 file limit, hence the compression). `pandas.read_csv` opens it directly.
 
 Built from the per-municipality scrapes in `data/raw_data/`, which remain in the repo as
@@ -11,21 +11,34 @@ the raw record. Rebuild with `python run_all.py`.
 
 ## Coverage
 
-**Temporal. Five cycles: 2013, 2016, 2019, 2022 and 2025.** 2013 is a partial cycle (see
-below); before it there are no vote counts, so 2001–2010 winners still cannot be checked
-against ballots.
+**Temporal. Six cycles: 2010, 2013, 2016, 2019, 2022 and 2025.** 2010 and 2013 are partial
+cycles (see below); before 2010 there are no vote counts, so 2001–2007 winners still cannot
+be checked against ballots.
 
 | Cycle | Rows | Municipality files | Source |
 |---|---|---|---|
+| 10 May 2010 | 119,929 | ~1,519 | Ianmaps Election Bank † |
 | 13 May 2013 | 38,878 | ~1,433 | Rappler (archived) |
 | 9 May 2016 | 361,947 | 1,633 | GMA Eleksyon |
 | 13 May 2019 | 389,092 | 1,634 | ABS-CBN Halalan |
 | 9 May 2022 | 504,814 | 1,634 | COMELEC |
 | 12 May 2025 | 425,770 | 1,638 | COMELEC |
 
+> † The 2010 municipal results were shared from the **Ianmaps Election Bank**, compiled by
+> **Ian ([@ian_maps](https://twitter.com/ian_maps))** and **Joseph Ricafort
+> ([@josephricafort](https://twitter.com/josephricafort))**. With thanks.
+
 The 2016–2025 cycles each land on **1,634 Philippine cities and municipalities** (2025 adds
 the new BARMM Special Geographic Area municipalities), which is an independent check that
-none is missing localities. 2013 is an exception, described next.
+none is missing localities. 2010 and 2013 are exceptions, described next.
+
+**2010 is a national-races-only cycle.** The source carries the presidential,
+vice-presidential and senatorial vote per city/municipality — and **no local offices** (no
+governor, mayor, House or council). Coverage is **~1,519 of 1,634 municipalities (93%)**.
+The source lists no party, so 2010's `party` is blank; percentage and rank are computed
+here (share of the locality's votes for that office; rank by votes within the locality).
+The national totals check out against the known result — Aquino wins the presidency, Binay
+edges Roxas for vice president, Revilla tops the Senate.
 
 **2013 is a partial cycle, reconstructed from Rappler's archived results.** Rappler's 2013
 live-results site is gone; the Internet Archive preserved ~88% of its municipality pages,
@@ -47,10 +60,10 @@ with these limits in mind:
 Because 2013's races are not all per-locality and its coverage is 88%, do not treat its
 totals as complete the way the 2016–2025 cycles are.
 
-**This dataset is multi-source.** 2013 comes from Rappler, 2016 from GMA, 2019 from ABS-CBN,
-2022 and 2025 from COMELEC. **No cycle is covered by more than one source**, so there are no
-cross-source conflicts to reconcile — but that changes the moment a second source is added
-for a cycle that already has one.
+**This dataset is multi-source.** 2010 comes from the Ianmaps Election Bank, 2013 from
+Rappler, 2016 from GMA, 2019 from ABS-CBN, 2022 and 2025 from COMELEC. **No cycle is covered
+by more than one source**, so there are no cross-source conflicts to reconcile — but that
+changes the moment a second source is added for a cycle that already has one.
 
 2016 also carries the **ARMM regional government** (`ARMM REGIONAL GOVERNOR`,
 `ARMM REGIONAL VICE GOVERNOR`, `ARMM ASSEMBLYMAN`), abolished when BARMM replaced ARMM in
@@ -81,7 +94,7 @@ municipality's file because national races are tallied locally.
 
 | Column | Type | Description |
 |---|---|---|
-| `year` | int | 2022 or 2025. |
+| `year` | int | Election year: 2010, 2013, 2016, 2019, 2022 or 2025. |
 | `region` | string | Canonical region. |
 | `province` | string | Canonical province or NCR district. |
 | `city` | string | Canonical city / municipality. The tally unit. |

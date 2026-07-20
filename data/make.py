@@ -15,7 +15,7 @@ Stages, in dependency order:
 
   compiling   raw scrapes + data/source/ -> data/processed/ (intermediates)
                                          -> data/output/    (the published datasets)
-              1. build_vote_counts.py           all raw scrapes -> output/NLE_Vote_Counts_2013-2025.csv.gz
+              1. build_vote_counts.py           all raw scrapes -> output/NLE_Vote_Counts_2010-2025.csv.gz
               2. build_winners_from_ballots.py  vote counts     -> processed/winners_{year}.csv
               3. merge_winners.py               source 2004-2016 + ballot-derived cycles
                                                                 -> output/NLE_Winners_2004-2025.csv
