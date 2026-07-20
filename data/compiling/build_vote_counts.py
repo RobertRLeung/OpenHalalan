@@ -215,7 +215,9 @@ def load_2010():
         "city": d["city"],
         # location-laden form for split_position; there is no district on a national race
         "position": [f"{p} of PHILIPPINES" for p in d["position"]],
-        "candidate_name": d["candidate_name"],
+        # The source is mixed-case ("Benigno Simeon III C."); upper-case it so 2010 matches
+        # the ALL-CAPS convention every other feed already uses (standardize_name preserves case).
+        "candidate_name": d["candidate_name"].str.upper(),
         "party": "",                      # the source carries no party affiliation
         "votes": pd.to_numeric(d["votes"], errors="coerce").fillna(0).astype(int),
     })
