@@ -19,6 +19,8 @@ Stages, in dependency order:
               2. build_winners_from_ballots.py  vote counts     -> processed/winners_{year}.csv
               3. merge_winners.py               source 2004-2016 + ballot-derived cycles
                                                                 -> output/NLE_Winners_2004-2025.csv
+              4. backfill_middle_names.py       COMELEC List of Elected Candidates + v8.5
+                                                -> fills 2016-2025 middle names in both outputs
 
   audit       both datasets -> data/audit/{issues,coverage_*}.csv
               Reports only; never modifies the data.
@@ -43,6 +45,9 @@ STAGES = {
         HERE / "compiling" / "build_vote_counts.py",
         HERE / "compiling" / "build_winners_from_ballots.py",
         HERE / "compiling" / "merge_winners.py",
+        # Last: fill the 2016-2025 middle names both files miss, from the COMELEC List of
+        # Elected Candidates + v8.5. Runs on the finished outputs, so it stays after the merge.
+        (HERE / "compiling" / "backfill_middle_names.py", "--apply"),
     ],
     "audit": [
         HERE / "audit" / "audit.py",
@@ -52,9 +57,10 @@ STAGES = {
 
 def run_stage(name):
     print(f"\n{'#' * 78}\n# {name}\n{'#' * 78}", flush=True)
-    for script in STAGES[name]:
+    for entry in STAGES[name]:
+        script, script_args = (entry, []) if isinstance(entry, Path) else (entry[0], list(entry[1:]))
         print(f"\n{'=' * 78}\n{script.name}\n{'=' * 78}", flush=True)
-        subprocess.run([sys.executable, str(script)], check=True)
+        subprocess.run([sys.executable, str(script), *script_args], check=True)
 
 
 def main():

@@ -50,7 +50,8 @@ middle names are recorded as initials.
 |---|---|---|
 | `Last Name` | string | Surname, upper case. |
 | `First Name` | string | Given name, upper case. |
-| `Middle Name` | string | Middle name — a married woman's is her maiden surname, which is how one traces marriage ties between families. **~90% filled for 2004–2013, ~13% after:** COMELEC's recent feeds report only `SURNAME, FIRST`, so marriage-based kinship is recoverable for the older cycles and largely lost for the newer ones. |
+| `Middle Name` | string | Middle name — a married woman's is her maiden surname, which is how one traces marriage ties between families. **~90% filled for 2004–2013.** The ballot-fed cycles (2016–2025) reach **87 / 88 / 80 / 56%** after a backfill from authoritative winners-only sources; see `Middle Name Source` and the note below. |
+| `Middle Name Source` | string | Where the `Middle Name` came from: **`original`** = present in the cycle's own source; **`comelec_lec`** = COMELEC's official List of Elected Candidates (2016/19/22), the authoritative same-election source; **`v8.5`** = the political-dynasty v8.5 file; **`self-prior`** = the person's own record in an earlier cycle (2025 only, since no 2025 list exists yet — **lower confidence**, names recur across towns and generations); **blank** = still unknown. Every backfilled cell is also listed in [`data/audit/middle_name_backfill.csv`](../audit/middle_name_backfill.csv). |
 | `Title` | string | Honorific, where the source gave one: `ATTY.`, `DOC`, `DR.`, `ENGR.`, and the Moro honorifics `DATU`, `BAI`, `HADJI`. Usually empty. |
 | `Full Name` | string | **Canonical `SURNAME, FIRST MIDDLE` in every cycle.** Joins directly against `candidate_name` in the vote-counts dataset. |
 | `Position` | string | One of the seven offices above. |
@@ -203,11 +204,15 @@ COMELEC scrapes.
    A seats-per-district reference table would remove both assumptions. Until then, these two
    offices are the only place a ballot-derived winner can still be wrong.
 
-5. **`Middle Name` is mostly empty for 2022 and 2025** (85% and 83%): COMELEC reports names
-   as `SURNAME, FIRST`. Earlier cycles carry it far more often. Any surname- or
-   name-matching across the 2019→2022 boundary is therefore working with systematically
-   *less* information in the recent cycles — a real bias risk for kinship inference. **Use
-   `Full Name` as the key.**
+5. **`Middle Name` for 2016–2025 is backfilled, not native.** The ballot feeds report only
+   `SURNAME, FIRST`, so these cycles originally had ~87% blank middles. They are filled from
+   COMELEC's official List of Elected Candidates (2016/19/22) and the v8.5 file, matched to the
+   **same election** (a winner and their List twin are the same person), reaching **87 / 88 / 80%**;
+   2025 has no List yet and is filled only from a person's own earlier record (**56%, lower
+   confidence**). Coverage is thus uneven across the 2019→2022→2025 boundary and the *source*
+   differs — check `Middle Name Source` before using middles for kinship inference, and treat
+   `self-prior` rows with caution. Backfilled ~91–95% consistent with the independent v8.5
+   file. **Use `Full Name` as the join key.**
 
 6. **`Party` is canonicalised, but party lineages are deliberately NOT merged.**
 
