@@ -2,6 +2,7 @@
 pandas>=2.0
 requests>=2.31
 PyYAML>=6.0
+PyMuPDF>=1.24        # backfill_middle_names.py reads the COMELEC List of Elected Candidates PDFs
 
 # Scraping only (data/scraping). Not needed for replication from the committed raw data.
 selenium>=4.15
