@@ -531,7 +531,70 @@ def apply_vote_counts(winners_backfilled, audit):
     winner_n = sum(1 for i in idxs if srcmap[i] == "winner-match")
     print(f"  vote counts: filled {len(idxs):,} blank middle names "
           f"({winner_n:,} winner rows, {len(idxs)-winner_n:,} others via cross-cycle self-match)")
+    d = add_sex_to_vote_counts(d, winners_backfilled, audit, is_winner)
     return d.drop(columns=["_v"])
+
+
+def add_sex_to_vote_counts(d, winners_backfilled, audit, is_winner):
+    """Give the vote-counts file a `sex` column (it had none), so gender can be analysed for
+    every CANDIDATE rather than only for winners - women running vs women winning.
+
+    The official lists only name winners, so losers are reached two other ways: a person who won
+    in some cycle carries their sex across, and otherwise a first name that is >=99% one sex in
+    COMELEC's own lists. The latter is an inference, not an observation, and `sex_source` marks
+    it so it can be excluded."""
+    person = defaultdict(set)      # (city, surname, given) -> sex
+    prov = defaultdict(set)        # (province, surname, given) -> sex, for rows with no city
+    for y in LEC_SEX_YEARS:
+        if SL.local_path(y, "citymun").exists():
+            for p, c, pos, last, first, _mid, sex in lec_records(y):
+                if sex:
+                    if c:
+                        person[(ccity(c), fold(last), given(first))].add(sex)
+                    prov[(cprov(p), fold(last), given(first))].add(sex)
+    for _, x in winners_backfilled.iterrows():
+        s = str(x["Sex"]).strip()
+        if s:
+            if str(x["City"]).strip():
+                person[(ccity(x["City"]), fold(x["Last Name"]), given(x["First Name"]))].add(s)
+            prov[(cprov(x["Province"]), fold(x["Last Name"]), given(x["First Name"]))].add(s)
+    # A winner's own backfilled record for the same cycle, so the two published files never
+    # disagree about the same person (the winners file resolves more, via its surname-only tier).
+    same = defaultdict(set)
+    for _, x in winners_backfilled.iterrows():
+        s = str(x["Sex"]).strip()
+        if s and str(x["City"]).strip():
+            same[(str(x["Year"]), ccity(x["City"]), x["Position"], fold(x["Last Name"]), given(x["First Name"]))].add(s)
+    uniq = lambda t: {k: next(iter(v)) for k, v in t.items() if len(v) == 1}
+    person, prov, same = uniq(person), uniq(prov), uniq(same)
+    given_map = _given_sex_map()
+
+    city = [ccity(c) for c in d["city"]]
+    prv = [cprov(p) for p in d["province"]]
+    ln = [fold(x) for x in d["last_name"]]
+    gv = [given(x) for x in d["first_name"]]
+    sex, src = [], []
+    for w, y, pos, c, p, l, g in zip(is_winner, d["year"], d["position"], city, prv, ln, gv):
+        v = same.get((y, c, pos, l, g)) if w else None
+        lab = "winner-match" if v else None
+        if not v:
+            v = person.get((c, l, g)) if c else None
+            lab = "person-match" if v else None
+        if not v:
+            v = prov.get((p, l, g))
+            lab = "person-match" if v else None
+        if not v:
+            v = given_map.get(g)
+            lab = "given-name" if v else None
+        sex.append(v or "")
+        src.append(lab or "")
+    d["sex"] = sex
+    d["sex_source"] = src
+    filled = sum(1 for s in sex if s)
+    obs = sum(1 for s in src if s in ("winner-match", "person-match"))
+    print(f"  vote counts: sex on {filled:,} of {len(d):,} rows "
+          f"({obs:,} matched to a named person, {filled-obs:,} inferred from the first name)")
+    return d
 
 
 def apply():

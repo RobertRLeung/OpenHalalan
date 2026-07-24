@@ -1,7 +1,7 @@
 # Data Dictionary — `NLE_Vote_Counts_2010-2025.csv.gz`
 
 Every candidate's votes, **winners and losers alike**, per city and municipality.
-**1,841,841 rows, 20 columns.** Gzipped (the uncompressed CSV is well above GitHub's 50 MB
+**1,841,841 rows, 22 columns.** Gzipped (the uncompressed CSV is well above GitHub's 50 MB
 file limit, hence the compression). `pandas.read_csv` opens it directly.
 
 Built from the per-municipality scrapes in `data/raw_data/`, which remain in the repo as
@@ -112,6 +112,19 @@ municipality's file because national races are tallied locally.
 | `rank` | int | **COMELEC's alphabetical index — NOT a vote standing.** See the warning below. |
 | `is_national_race` | bool | True for President / Vice President / Senator / Party List. |
 | `is_geographic` | bool | False for non-geographic tally categories (see LAV below). |
+| `sex` | string | `M` or `F` for the candidate. **This file's sex covers every CANDIDATE, not just winners**, which is what makes it possible to compare women *running* with women *winning* — the winners dataset cannot answer that. For the **local offices** (mayor, vice mayor, councilor) it reaches **67–79% of all candidates** and **95–97% of the winners**. It is near-empty for the nationwide races, where `PARTY LIST` rows are organisations rather than people and presidential ballot names are nicknames (`BONGBONG`, `LENI`) that appear in no official list. See `sex_source` and the caveat below. |
+| `sex_source` | string | How `sex` was obtained, most reliable first: **`winner-match`** = this row is the race winner and was matched to their own record in the winners dataset; **`person-match`** = matched to a named person in COMELEC's List of Elected Candidates or the winners data; **`given-name`** = a first name that is ≥99% one sex across COMELEC's own lists — **an inference, not an observation**; **blank** = unknown. |
+
+### ⚠ `sex` is only partly observed — and the unobserved part is not missing at random
+
+COMELEC's official lists name **only winners**, so a losing candidate can be identified by name
+only if they won some other cycle. Everyone else falls back to a first-name inference, and
+candidates whose ballot name is a nickname (`BONG`, `JUN`, `INDAY`) or a rare given name get no
+sex at all. The result is that **`sex` is far better populated for winners than for losers**,
+which is exactly the comparison a turnout- or candidacy-style analysis wants to make.
+
+Filter on `sex_source` before computing any rate. Treating the filled rows as a random sample of
+candidates will overstate whatever winners do, because winners are over-represented among them.
 
 ### ⚠ `rank` does not mean what it looks like
 
