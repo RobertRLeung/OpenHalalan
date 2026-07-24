@@ -4,63 +4,57 @@ Build what the Dynasties map runs on, from the winners dataset.
     python data/site/build_dynasties.py     -> data/site/dynasty_rates.json
                                                 data/site/dynasty_clans.json  (+ report)
 
-Depends on data/site/map_geo.json (for the PSGC codes and the province->region map), so run
-build_map_geo.py first. Reuses the geometry's codes so the Dynasties map can draw on exactly
-the same boundaries as the results map.
+Depends on data/site/map_geo.json for the PSGC codes and the province->region map, so run
+build_map_geo.py first. Reusing those codes lets the Dynasties map draw the same boundaries as
+the results map.
 
-What counts as dynastic here
-----------------------------
-A seat is dynastic when ANOTHER person in the same unit shares one of its name tokens - a
-surname OR a middle name. That one test captures the three ways kinship shows in a Filipino
-name:
+What counts as dynastic
+-----------------------
+A seat is dynastic when another person in the same unit shares one of its name tokens, either
+surname or middle name. That one test covers the three ways kinship shows in a Filipino name:
 
   last-last     two siblings share a surname.
-  last-middle   a married woman carries her maiden name as her middle, so her middle IS her
-                birth family's surname - the link a surname-only pass misses, and the reason
-                it undercounts families joined through their daughters.
-  middle-middle two people share a mother's maiden name as a middle, even where the surname
-                differs. This is what a surname pass misses in Mountain Province, whose
-                dynasties run through maternal lines - and what a study of the same data found.
+  last-middle   a married woman carries her maiden name as her middle name, so her middle IS
+                her birth family's surname. A surname-only pass misses this, and so undercounts
+                families joined through their daughters.
+  middle-middle two people share a mother's maiden name, even where the surnames differ. This
+                is what a surname pass misses where dynasties run through maternal lines.
 
-The test is PAIRWISE - "does anyone here share a token with me" - and pointedly NOT a
-union-find. Chaining shared tokens transitively (A-B by a middle, B-C by a surname, ...)
-walks a common maternal name straight across a province and swallows half of it into one
-400-person "family". Pairwise cannot chain: two people who share one token are each counted,
-but nothing declares them one family. Two unrelated Santos in a town still read as related -
-that is the surname-coincidence floor - but the noise stays local, tightest where you zoom
-closest.
+The test is pairwise - "does anyone here share a token with me" - and deliberately not a
+union-find. Chaining tokens transitively would walk a common maternal name across a province
+and merge half of it into one enormous family. Pairwise cannot chain: two people sharing a
+token are each counted, but nothing declares them one family. Two unrelated Santos in a town
+still read as related, which is the surname-coincidence floor, but the noise stays local.
 
-The rate and the panel part ways on purpose. The RATE, above, is a shaded number and can
-afford the loose pairwise net. The detail PANEL prints real people's names, so it groups them
-the one plain, defensible way - a shared SURNAME - and never asserts a marriage or maternal
-tie it cannot show. So a locality's shaded rate can be a little higher than the surname
-families the panel lists add up to; the gap is the marriage and maternal links, counted but
-not named.
+The rate and the panel part ways on purpose. The RATE is a shaded number and can afford the
+loose pairwise net. The detail PANEL names real people, so it groups them only by shared
+SURNAME and never asserts a marriage or maternal tie it cannot show. A locality's rate can
+therefore run a little above the families the panel lists; the gap is the marriage and maternal
+links, counted but not named.
 
-Thin vs fat, the two shapes of a dynasty
-----------------------------------------
+Thin vs fat
+-----------
   THIN  (sunud-sunod, one after another) - the family holds a seat in a unit across DIFFERENT
         years. Brother A is mayor, then brother B succeeds him. Succession.
-  FAT   (sabay-sabay, side by side)       - the family holds two seats in the SAME unit in the
+  FAT   (sabay-sabay, side by side)      - the family holds two seats in the SAME unit in the
         SAME year. Brother A mayor, brother B vice mayor. Co-occupation.
 
-A winner is dynastic-thin (or -fat) if ANOTHER member of their family also held a seat in the
-unit, in a different year (thin) or the same year (fat). Re-election of the same person is
-neither - that is incumbency, not a dynasty, and it is excluded by identity.
+A winner is thin or fat if another member of their family also held a seat in the unit, in a
+different year or the same one. Re-election of the same person is neither: that is incumbency,
+and it is excluded by identity.
 
-Three zoom levels, and how far back each reaches
-------------------------------------------------
-  municipality  the family holds seats in the same TOWN. Cleanest. City is only in the data
-                from 2016, so this level is 2016-2025.
-  province      the family holds seats anywhere in the PROVINCE. 2004-2025.
-  region        the whole region. 2004-2025. Loosest - the widest net for a common name.
+Zoom levels
+-----------
+  municipality  same TOWN. Cleanest, but city is only in the data from 2016.
+  province      anywhere in the PROVINCE.
+  region        the whole region. Loosest, so the widest net for a common name.
 
 Output
 ------
-  dynasty_rates.json   {level: {unitPSGC: {year: [dynastic, fat, thin, total]}}} - the numbers
-                       the heatmap colours itself with. Small.
-  dynasty_clans.json   {level: {unitPSGC: [clan, ...]}} - the families themselves, for the
-                       detail panel: who they are, which offices, which years, thin and/or fat.
+  dynasty_rates.json   {level: {unitPSGC: {year: [dynastic, fat, thin, total]}}} - what the
+                       heatmap colours itself with.
+  dynasty_clans.json   {level: {unitPSGC: [clan, ...]}} - the families, for the detail panel:
+                       who they are, which offices, which years, thin and/or fat.
 """
 
 import collections
@@ -135,8 +129,7 @@ def fold(s):
     return re.sub(r"\s+", " ", re.sub(r"[^A-Z0-9 ]", " ", s)).strip()
 
 
-# extract_given lives in data/compiling/normalize.py so this build and the sex backfill key a
-# given name identically; importing it here keeps one definition rather than two that can drift.
+# Shared with the sex backfill so a given name keys the same way in both.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "compiling"))
 from normalize import extract_given  # noqa: E402
 

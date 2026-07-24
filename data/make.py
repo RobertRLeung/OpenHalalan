@@ -2,28 +2,17 @@
 The OpenHalalan data pipeline. One entry point for all three stages.
 
     python data/make.py              # rebuild both datasets from the committed raw scrapes, then audit
-    python data/make.py --scrape     # re-scrape COMELEC first (slow: hours, drives a real browser)
+    python data/make.py --scrape     # re-scrape COMELEC first (slow, drives a real browser)
     python data/make.py --audit-only # just re-run the completeness audit
     python data/make.py --stage compiling
 
 Stages, in dependency order:
 
-  scraping    COMELEC websites -> data/raw_data/{2022,2025}/
-              Skipped by default: the raw scrapes are committed, so replication never
-              needs to touch COMELEC. Each scraper takes --region/--province to re-fetch
-              one place, and skips municipalities already on disk.
-
-  compiling   raw scrapes + data/source/ -> data/processed/ (intermediates)
-                                         -> data/output/    (the published datasets)
-              1. build_vote_counts.py           all raw scrapes -> output/NLE_Vote_Counts_2010-2025.csv.gz
-              2. build_winners_from_ballots.py  vote counts     -> processed/winners_{year}.csv
-              3. merge_winners.py               source 2004-2016 + ballot-derived cycles
-                                                                -> output/NLE_Winners_2004-2025.csv
-              4. backfill_person_fields.py       COMELEC List of Elected Candidates + v8.5
-                                                -> fills 2016-2025 middle names in both outputs
-
-  audit       both datasets -> data/audit/{issues,coverage_*}.csv
-              Reports only; never modifies the data.
+  scraping    COMELEC websites -> data/raw_data/. Skipped by default: the raw scrapes are
+              committed, so replication never needs to touch COMELEC.
+  compiling   raw scrapes + data/source/ -> data/output/, the published datasets. Scripts run
+              in the order listed below; each one's own docstring says what it does.
+  audit       reports on both datasets; never modifies them.
 
 All paths come from config.yaml. Requirements: pip install -r requirements.txt
 """
@@ -45,8 +34,7 @@ STAGES = {
         HERE / "compiling" / "build_vote_counts.py",
         HERE / "compiling" / "build_winners_from_ballots.py",
         HERE / "compiling" / "merge_winners.py",
-        # Last: fill the 2016-2025 middle names both files miss, from the COMELEC List of
-        # Elected Candidates + v8.5. Runs on the finished outputs, so it stays after the merge.
+        # Runs on the finished outputs, so it stays after the merge.
         (HERE / "compiling" / "backfill_person_fields.py", "--apply"),
     ],
     "audit": [

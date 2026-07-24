@@ -375,10 +375,10 @@ def audit_alignment(winners):
                  f"dataset covers {covered}, so this cycle cannot be verified "
                  f"against ballots")
 
-    # Cycles that have vote counts, but only partially - 2013 is reconstructed from Rappler's
-    # archive at ~88% of municipalities, with governor and senator as aggregates rather than
-    # per-locality. A clean winners-vs-ballots match is not expected for it, so its alignment
-    # is reported but not asserted above.
+    # Cycles with only partial vote counts. 2013 is reconstructed from Rappler's archive, which
+    # does not cover every municipality and reports governor and senator as aggregates rather
+    # than per locality, so a clean winners-vs-ballots match is not expected. Reported, not
+    # asserted.
     for year in sorted(vote_years - set(VOTE_COUNT_YEARS)):
         flag("alignment", "info", "partial vote counts for this cycle", str(year),
              f"{year} vote counts are reconstructed from an archive at partial coverage, so "

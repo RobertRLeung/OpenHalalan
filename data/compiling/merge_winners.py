@@ -67,9 +67,8 @@ def to_winners_schema(df, year):
             "Party": df["party"].values,
             "Year": year,
             "Province": df["province"].values,
-            # City exists for the ballot-derived cycles because it comes off the ballots.
-            # It is legitimately blank for province/district offices (a governor has no
-            # city), which is why the column is ~93% filled rather than 100%.
+            # City comes off the ballots, so it exists for the ballot-derived cycles. It is
+            # legitimately blank for province and district offices - a governor has no city.
             "City": df["city"].values,
             "Region": df["region"].values,
             # Sex is only known for cycles taken from COMELEC's List of Elected Candidates.

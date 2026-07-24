@@ -96,9 +96,7 @@ def _fold(value):
 
 
 # ---------------------------------------------------------------- given-name extraction
-# Shared by the site's dynasty build and the sex backfill, so a given name keys the same way in
-# both. Deliberately NOT built on _fold: that turns a hyphen into a space, which would split
-# "Mar-Len" into two tokens, whereas a given name needs it joined ("MARLEN").
+# Not built on _fold, which turns a hyphen into a space and would split "Mar-Len" in two.
 GIVEN_HONORIFICS = {"H", "HADJI", "HADJ", "HAJI", "HJ"}
 
 

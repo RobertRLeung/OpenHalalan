@@ -3,8 +3,8 @@ Reconstruct 2013 candidate-level vote counts from Rappler's archived results.
 
     https://web.archive.org/web/2013*/http://election-results.rappler.com/2013/
 
-Rappler's 2013 "Comelec Live Data" site is gone, but the Internet Archive captured ~1,561 of
-the ~1,634 municipality pages (plus provinces and a national senate page) as server-rendered
+Rappler's 2013 "Comelec Live Data" site is gone, but the Internet Archive captured most of the
+municipality pages (plus provinces and a national senate page) as server-rendered
 HTML - each carrying every candidate, party and vote total. That is a near-complete
 candidate-level record for a cycle the project otherwise has NO vote data for (our vote counts
 start in 2016).

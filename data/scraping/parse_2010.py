@@ -1,23 +1,18 @@
 """
-Reshape the 2010 national municipal results into the project's long format.
+Reshape the 2010 national results into the project's long format.
 
-The 2010 presidential, vice-presidential and senatorial votes were recovered from a
-municipal-level tabulation (data/source/2010_national_source.csv) that carries one ROW per
-city/municipality and one COLUMN per candidate, prefixed by office:
+data/source/2010_national_source.csv is a wide table: one row per city/municipality, one
+column per candidate, prefixed by office.
 
     "P: AQUINO, Benigno Simeon III C."     <- president
     "VP: BINAY, Jejomar C."                <- vice president
     "S: BONG REVILLA, Ramon, Jr. B."       <- senator
 
-Each cell is that candidate's vote total in that locality. This melts the wide table into
-one row per (locality, candidate) and writes data/processed/national_2010.csv, the tidy
-extract build_vote_counts.py consumes. The source also carries the PSGC of every locality
-(adm3_psgc), kept alongside for traceability.
+This melts it into one row per locality and candidate, writing data/processed/national_2010.csv
+for build_vote_counts.py. The locality PSGC is kept for traceability. 2010 is a
+national-races-only cycle here; the source carries no local offices.
 
     python data/scraping/parse_2010.py
-
-Coverage: 1,519 of the ~1,634 cities and municipalities (93%); 2010 is a national-race-only
-cycle for the project - no local offices are in this source.
 
 Source: the Ianmaps Election Bank, compiled by Ian (@ian_maps) and Joseph Ricafort
 (@josephricafort), shared for this project. With thanks.

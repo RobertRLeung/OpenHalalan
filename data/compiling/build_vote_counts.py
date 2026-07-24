@@ -213,9 +213,8 @@ def load_2010():
     """2010 is a NATIONAL-race-only cycle here (president, vice president, senator), from the
     Ianmaps municipal tabulation reshaped by parse_2010.py. COMELEC naming, computed rank/%.
 
-    (No local races: Rappler's /2010/ pages were only archived in 2016-2018, by which time the
-    site served 2013 content at those URLs - verified by the absence of any presidential race
-    on a 2010 presidential-year page - so they are 2013 data, not 2010, and are not used here.)"""
+    Rappler's /2010/ pages are not used here: they hold 2013 content, not 2010. See
+    scrape_2013_mirror.py."""
     src = PROCESSED / "national_2010.csv"
     if not src.exists():
         print("  (no national_2010.csv; skipping 2010)")

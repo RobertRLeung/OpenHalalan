@@ -1,35 +1,26 @@
 """
-Backfill the person fields the 2016-2025 cycles are missing: Middle Name and Sex.
+Fill the Middle Name and Sex that the 2016-2025 cycles are missing.
 
-Those cycles are built from ballot feeds (GMA / ABS-CBN / COMELEC vote counts) that carry
-neither a middle name nor a sex, so ~87% of their winners had a blank Middle Name and up to a
-third a blank Sex (all of 2025). Both are filled from authoritative winners-only sources, keyed
-to the SAME election wherever possible:
+Those cycles come from ballot feeds that report only "SURNAME, FIRST", so both fields arrive
+blank. They are filled from sources that cover winners:
 
-  * COMELEC's official List of Elected Candidates (`data/raw_data/comelec_lec/`, 2016/19/22)
-    - names are "SURNAME, FIRST MIDDLE", ~100% carry the middle (a maternal surname).
-  * the political-dynasty v8.5 source file (2016/19/22), province-level.
-  * the winners dataset's own already-populated middle names (self-match).
+  * COMELEC's List of Elected Candidates (data/raw_data/comelec_lec/), which prints
+    "SURNAME, FIRST MIDDLE" and a SEX column.
+  * the political-dynasty v8.5 file, which has no city and so only keys at province level.
+  * the winners dataset itself, for a person's record in another cycle.
 
-Matching is SAME-YEAR first (a winner and their LEC twin are the same person, so a
-province+city+position+surname+given key is safe). 2025 has no LEC/v8.5 yet, so it falls back
-to a CROSS-YEAR self-match (the person's own earlier record) which is lower-confidence
-(~80%, names recur across towns and generations) and is labelled as such.
+Same-year matching comes first: a winner and their entry in that year's list are the same
+person, so a city + surname + given key is safe. 2025 has no list published yet and falls back
+to a cross-year self-match, which is weaker because names recur across towns and generations.
 
-Sex has a wider base than the middle names: every LEC cycle (2001-2022) prints a SEX column, so
-same-year matching covers 2016/19/22, and 2025 falls back to the person's own earlier record and
-then to a first name that is >=99% one sex in COMELEC's own lists.
+Title is not filled. The lists print no honorifics and few candidates register one, so those
+blanks are absent rather than missing; only spelling variants are folded.
 
-Title is NOT backfilled - the LEC prints no honorifics and only ~1-2% of candidates register
-one, so the blanks are genuinely absent rather than missing. Spelling variants of the titles that
-do exist (ATTY / ATTY.) are folded together so the column can be filtered on.
+Only blank cells are filled. Where each value came from is recorded in the Middle Name Source
+and Sex Source columns and in data/audit/backfill_audit.csv.
 
-Every filled cell records where it came from, in `Middle Name Source` / `Sex Source` columns on
-the winners dataset and in `data/audit/backfill_audit.csv`. Only BLANK cells are filled;
-existing values are never overwritten.
-
-    python data/compiling/backfill_person_fields.py --report      # coverage + precision, no writes
-    python data/compiling/backfill_person_fields.py --apply       # write winners + vote counts + audit
+    python data/compiling/backfill_person_fields.py --report   # coverage, no writes
+    python data/compiling/backfill_person_fields.py --apply    # write both datasets + audit
 """
 import argparse
 import re
@@ -53,7 +44,7 @@ VOTE_COUNTS = ROOT / "output" / "NLE_Vote_Counts_2010-2025.csv.gz"
 V85 = ROOT / "source" / "political_dynasty_v8.5.csv"
 AUDIT = ROOT / "audit" / "backfill_audit.csv"
 
-_V85 = None   # the political-dynasty v8.5 source frame, loaded once in report()/apply_winners()
+_V85 = None   # v8.5 source frame, loaded once
 
 CITY_POS = {"MAYOR", "VICE MAYOR", "COUNCILOR"}
 GOV_POS = {"GOVERNOR", "VICE GOVERNOR"}          # exactly one per province -> province key is safe
@@ -130,10 +121,8 @@ _JUNK_LABELS = {"SEX","PARTY","AFFILIATION","PARTY AFFILIATION","PARTY AFILLIATI
                 "NAME OF ELECTED CANDIDATES","REGION","PROVINCE","POSITION","BARMM DISTRICT",
                 "PROVINCE / CITY","CITY/MUNICIPALITY","CITY / MUNICIPALITY","POSITION /","POSITION/DISTRICT"}
 def _clean_lines(doc):
-    # Every real datum in the LEC (names, provinces, cities, positions, party codes) is printed
-    # in UPPERCASE; only the page header/footer boilerplate carries lowercase letters. Dropping
-    # any line with a lowercase letter removes the wrapped "Notice:" footer prose that would
-    # otherwise be parsed as comma-bearing candidate names.
+    # LEC data is all uppercase; only the header/footer boilerplate has lowercase. Dropping
+    # those lines removes the wrapped "Notice:" prose, which otherwise parses as a name.
     for p in range(doc.page_count):
         for ln in doc[p].get_text().split("\n"):
             s = re.sub(r"\s+", " ", ln).strip()
@@ -160,14 +149,12 @@ _DISTRICT = re.compile(r"^(\d+(ST|ND|RD|TH)|LONE|FIRST|SECOND|THIRD|FOURTH|FIFTH
                        r"SEVENTH|EIGHTH|NINTH|TENTH) DISTRICT$")
 
 def _extract(year, cat):
-    """(province, city, position, last, first, middle) for every winner in one LEC PDF.
+    """Read one LEC PDF. The three cycles use different layouts.
 
-    Each candidate is a record unit: NAME -> [rank '1.'] -> exactly two tokens that are the
-    party and the sex, in either order (2016 lists party first, 2019/2022 sex first). Consuming
-    the pair as a unit keeps party codes out of the locality buffer regardless of the layout.
-    A citymun row's city is the bare line right before its MAYOR; province comes from the
-    explicit REGION:/PROVINCE: prefixes (2016), the header (2022), or the stacked bare lines
-    (2019)."""
+    A candidate is NAME -> [rank] -> two tokens holding the party and the sex in either order.
+    Consuming that pair as a unit keeps party codes out of the locality buffer whichever order
+    a cycle uses. City is the line before MAYOR; province comes from a REGION:/PROVINCE: prefix,
+    a header, or the preceding bare lines, depending on the year."""
     doc = fitz.open(SL.local_path(year, cat))
     province = city = position = None
     loc_buf, rows = [], []
@@ -226,8 +213,7 @@ def _extract(year, cat):
 
 @lru_cache(maxsize=None)
 def lec_records(year):
-    """Cached: the sex backfill asks for every cycle's records once per target year, and each
-    call otherwise re-parses three multi-thousand-page PDFs."""
+    """Every winner in one cycle, across the three category PDFs."""
     recs = []
     for cat in ("citymun", "provincial", "house"):
         if SL.local_path(year, cat).exists():
@@ -236,8 +222,8 @@ def lec_records(year):
 
 # --------------------------------------------------------------------------- source tuples
 def lec_tuples(year):
-    """(cprov, ccity, position, surname, given, middle) from the LEC PDFs for one cycle
-    (plus the old parser for 2016, whose province is cleaner)."""
+    """Middle names from one cycle's LEC. 2016 also uses the older parser, which reads its
+    province more reliably."""
     for prov, city, pos, last, first, mid, _sex in lec_records(year):
         if has_mid(mid):
             yield cprov(prov), ccity(city), pos, fold(last), given(first), mid.strip()
@@ -255,8 +241,7 @@ def v85_tuples(year):
             yield cprov(x["Province"]), "", x["Position"], fold(x["Last Name"]), given(x["First Name"]), x["Middle Name"].strip()
 
 # --------------------------------------------------------------------------- sex
-# Every LEC cycle (2001-2022, not just the three with usable middle names) prints a SEX column,
-# so sex has a wider authoritative base than the middle names did. 2025 has no list yet.
+# Sex is printed in every LEC cycle, not just the three with usable middle names.
 LEC_SEX_YEARS = (2001, 2004, 2007, 2010, 2013, 2016, 2019, 2022)
 SEX_BY_GIVEN = ROOT / "processed" / "sex_by_given.csv"
 
@@ -266,9 +251,8 @@ def lec_sex_tuples(year):
             yield cprov(prov), ccity(city), pos, fold(last), given(first), sex
 
 def crossyear_sex_tuples(winners, exclude_year=None):
-    """Every known sex, from all LEC cycles plus the winners' own populated Sex. A person's sex
-    is stable, so a cross-cycle match is far safer here than it is for a middle name - and even a
-    same-name relative is usually the same sex."""
+    """Sex from every cycle. A person's sex does not change, so matching across cycles is safe
+    here in a way it is not for a middle name."""
     for y in LEC_SEX_YEARS:
         if SL.local_path(y, "citymun").exists():
             yield from lec_sex_tuples(y)
@@ -285,21 +269,15 @@ def _given_sex_map():
 SEX_BY_GIVEN_DERIVED = ROOT / "processed" / "sex_by_given_derived.csv"
 
 def winners_given_sex_map(winners):
-    """given name -> sex, learned from the winners dataset's own `Sex` column.
+    """Learn given name -> sex from the winners' own Sex column, a much wider base than the
+    static sex_by_given.csv list.
 
-    The shipped `sex_by_given.csv` is a static list of ~3,000 names built from COMELEC's lists at
-    a >=99% purity / >=5 occurrence bar. The winners file now carries Sex on ~157k rows at ~94%,
-    which is a far richer base, so the lookup is relearned from it here.
+    A name is kept only when one sex holds for most of several winners. Both bounds matter: they
+    keep unisex names and one-off spellings out, and assigning those would be worse than leaving
+    the row blank.
 
-    A name is kept only if its modal sex holds for **>=80% of at least 2 winners**. Both bounds
-    are load-bearing: they are what keeps genuinely unisex names (and one-off spellings) out,
-    since assigning those would be worse than leaving the row blank. The given name comes from
-    `extract_given`, the same extractor the dynasty build uses, so "Ma." -> MARIA, leading Hadji
-    honorifics and hyphen/apostrophe names all key identically on both sides.
-
-    This is written to sex_by_given_derived.csv rather than over sex_by_given.csv: the strict
-    static list is what merge_winners uses to assign the winners' OWN sex, and loosening that bar
-    would feed this map's output back into its own input."""
+    Written to its own file rather than over sex_by_given.csv, because merge_winners uses that
+    stricter list to assign the winners' own sex - the input this map is learned from."""
     ws = winners[winners["Sex"].astype(str).str.strip() != ""]
     tab = defaultdict(Counter)
     for f, m, s in zip(ws["First Name"], ws["Middle Name"], ws["Sex"].astype(str).str.strip()):
@@ -319,10 +297,8 @@ def winners_given_sex_map(winners):
     return out
 
 def resolve_sex_for_year(winners, year, given_map):
-    """{row_index: (sex, source)} for rows of one cycle with a blank Sex.
-
-    Same-year LEC first (the authoritative list for that exact election), then the person's own
-    record in another cycle, then a first-name that is >=99% one sex in COMELEC's own lists."""
+    """Resolve blank Sex for one cycle: that year's list first, then the person's record in
+    another cycle, then the first-name lookup."""
     stages = []
     if year in LEC_SEX_YEARS and SL.local_path(year, "citymun").exists():
         stages.append((build_index(lec_sex_tuples(year)), "comelec_lec", True))
@@ -345,10 +321,8 @@ def resolve_sex_for_year(winners, year, given_map):
 
 
 # --------------------------------------------------------------------------- title
-# Honorifics cannot be "backfilled": the List of Elected Candidates prints none and only ~1-2% of
-# candidates register one, so 99% of the blanks are genuinely absent rather than missing. All that
-# is done here is folding spelling variants of the same title together (ATTY / ATTY., DR / DR.)
-# so the column can be filtered on.
+# Honorifics cannot be backfilled: the lists print none and few candidates register one, so the
+# blanks are absent rather than missing. Only spelling variants are folded (ATTY / ATTY.).
 TITLE_CANON = {"ATTY": "ATTY.", "DOC": "DOC", "DR": "DR.", "ENGR": "ENGR.", "JUDGE": "JUDGE",
                "PROF": "PROF.", "BRO": "BRO.", "PASTOR": "PASTOR", "REV": "REV.", "FR": "FR.",
                "CAPT": "CAPT.", "COL": "COL.", "GEN": "GEN.", "SULTAN": "SULTAN",
@@ -362,8 +336,7 @@ def canon_title(t):
 
 
 def crossyear_tuples(winners):
-    """Every winner source across all cycles, for the 2025 self-match (a person's own earlier
-    record). Exact-given only downstream, so no surname-only tier."""
+    """Every winner source across all cycles, for the 2025 self-match."""
     for y in LEC_YEARS:
         yield from lec_tuples(y)
     for _, x in _V85.iterrows():
@@ -374,11 +347,11 @@ def crossyear_tuples(winners):
             yield cprov(x["Province"]), ccity(x["City"]), x["Position"], fold(x["Last Name"]), given(x["First Name"]), x["Middle Name"].strip()
 
 def build_index(tuples):
-    """Two conflict-suppressed lookups. City offices key on (city, surname, given) WITHOUT
-    province: city extraction is reliable across all three PDF layouts while province is not,
-    and conflict-suppression drops the rare same-name-town collision (costing recall, never
-    precision). Governor / vice-governor (one per province) key on (province, position,
-    surname, given), which v8.5 supplies cleanly."""
+    """Two lookups, each dropping any key that maps to more than one value.
+
+    City offices deliberately key without province: city parses reliably across all three PDF
+    layouts and province does not, and a same-name-town collision is dropped rather than guessed.
+    Governor and vice-governor are one per province, so they key on province and position."""
     city_k = defaultdict(set)
     citylast_k = defaultdict(set)
     gov_k = defaultdict(set)
@@ -392,9 +365,8 @@ def build_index(tuples):
     return uniq(city_k), uniq(citylast_k), uniq(gov_k)
 
 def lookup(idx, prov, city, pos, last, gv, allow_surname_only=False):
-    """allow_surname_only enables the (city, surname) tier, which tolerates given-name spelling
-    drift (nicknames) but is safe ONLY within the same election, where a surname unique to a
-    town's winners is one person. It is off for the cross-year 2025 self-match."""
+    """allow_surname_only drops the given name, tolerating nickname spellings. Safe only within
+    one election, where a surname unique to a town's winners is one person."""
     city_k, citylast_k, gov_k = idx
     if pos in CITY_POS:
         return city_k.get((city, last, gv)) or (citylast_k.get((city, last)) if allow_surname_only else None)
@@ -404,10 +376,8 @@ def lookup(idx, prov, city, pos, last, gv, allow_surname_only=False):
 
 # --------------------------------------------------------------------------- driver
 def resolve_for_year(winners, year):
-    """Return {row_index: (middle, source_label)} for blank rows of one cycle.
-
-    2016/19/22: same-year LEC first (label comelec_lec), then v8.5 (label v8.5); both allow the
-    safe surname-only tier. 2025: cross-year self-match, exact given only (label self-prior)."""
+    """Resolve blank middle names for one cycle: that year's list, then v8.5. 2025 has neither
+    and falls back to a cross-year self-match on the exact given name."""
     if year == 2025:
         stages = [(build_index(crossyear_tuples(winners)), "self-prior", False)]
     else:
@@ -436,14 +406,12 @@ def report():
 
 
 def apply_winners():
-    """Fill blank Middle Name on the winners dataset, add a Middle Name Source column, and
-    regenerate Full Name for filled rows. Returns (winners_df, audit_rows)."""
+    """Fill blank Middle Name and Sex on the winners dataset, recording where each came from."""
     from normalize import canonical_full_name
     global _V85
     _V85 = pd.read_csv(V85, dtype=str).fillna("")
     W = pd.read_csv(WINNERS, dtype=str).fillna("")
-    # Re-running must not relabel earlier provenance as "original", so an existing source column
-    # is carried forward and only rows it does not cover are labelled here.
+    # Carry an existing source column forward, so a re-run does not relabel earlier provenance.
     if "Middle Name Source" in W.columns:
         src = W["Middle Name Source"].fillna("")
         W = W.drop(columns=["Middle Name Source"])
@@ -466,9 +434,7 @@ def apply_winners():
     W = W[cols[:cols.index("Middle Name") + 1] + ["Middle Name Source"] + cols[cols.index("Middle Name") + 1:]]
 
     # ---- Sex ------------------------------------------------------------------
-    # `prior` marks a value that was already in the file before this step: native for 2001 (it
-    # comes straight off the List of Elected Candidates) and name-matched by merge_winners for
-    # 2004-2022. The other labels are what this step assigned.
+    # "prior" = already in the file before this step; the other labels are set here.
     if "Sex Source" in W.columns:
         ssrc = W["Sex Source"].fillna("")
         W = W.drop(columns=["Sex Source"])
@@ -496,10 +462,8 @@ def apply_winners():
 
 
 def build_person_index(winners_backfilled):
-    """Cross-year (city, surname, given) -> middle, conflict-suppressed over every winner source
-    (backfilled winners of all years + LEC + v8.5). Used to carry middles into the vote-counts
-    file, including a few losers who won in another cycle. Exact given only (no surname-only) to
-    stay safe across years."""
+    """Carry middle names into the vote counts, including losers who won in another cycle.
+    Exact given name only, since a surname alone is not safe across cycles."""
     city_k = defaultdict(set)
     for _, x in winners_backfilled.iterrows():
         if has_mid(x["Middle Name"]) and x["Position"] in CITY_POS and str(x["City"]).strip():
@@ -512,14 +476,10 @@ def build_person_index(winners_backfilled):
 
 
 def apply_vote_counts(winners_backfilled, audit):
-    """Fill blank middle_name on the vote-counts file for 2016-2025, regenerate candidate_name,
-    and append to the audit.
+    """Fill blank middle_name on the vote counts and rebuild candidate_name.
 
-    Two passes. First, WINNER rows are matched to their own backfilled winners record for the
-    same cycle at (year, city, position, surname, given) - the same person, so the vote-counts
-    winners end up identical to the winners dataset. Then any remaining blank (mostly losers) is
-    tried against the cross-year person index, which carries a middle for anyone who won in some
-    cycle."""
+    Winners are matched to their own record for the same cycle, so the two published files agree
+    about the same person. Remaining blanks, mostly losers, fall back to the cross-cycle index."""
     from normalize import canonical_full_name
     # same-year winner map from the backfilled winners dataset
     same = defaultdict(set)
@@ -530,8 +490,8 @@ def apply_vote_counts(winners_backfilled, audit):
     cross = build_person_index(winners_backfilled)
 
     d = pd.read_csv(VOTE_COUNTS, dtype=str).fillna("")
-    # Mark the actual winner of each race (max votes) so the same-year winner map is only applied
-    # to winners - never to a losing namesake (often a relative) who shares surname+given.
+    # Only the actual winner may use the winner map, never a losing namesake - often a relative
+    # sharing surname and given name.
     d["_v"] = pd.to_numeric(d["votes"], errors="coerce").fillna(-1)
     race = ["year", "region", "province", "city", "district", "position"]
     is_winner = d.index.isin(d.loc[d.groupby(race)["_v"].idxmax()].index)
@@ -573,13 +533,12 @@ def apply_vote_counts(winners_backfilled, audit):
 
 
 def add_sex_to_vote_counts(d, winners_backfilled, audit, is_winner):
-    """Give the vote-counts file a `sex` column (it had none), so gender can be analysed for
-    every CANDIDATE rather than only for winners - women running vs women winning.
+    """Add sex to the vote counts, so gender can be analysed for every candidate and not only
+    for winners.
 
-    The official lists only name winners, so losers are reached two other ways: a person who won
-    in some cycle carries their sex across, and otherwise a first name that is >=99% one sex in
-    COMELEC's own lists. The latter is an inference, not an observation, and `sex_source` marks
-    it so it can be excluded."""
+    The official lists name only winners, so a loser is reached either by having won in some
+    cycle or by the first-name lookup. The latter is an inference about the name rather than an
+    observation of the person, and sex_source marks it so it can be excluded."""
     person = defaultdict(set)      # (city, surname, given) -> sex
     prov = defaultdict(set)        # (province, surname, given) -> sex, for rows with no city
     for y in LEC_SEX_YEARS:
@@ -595,8 +554,7 @@ def add_sex_to_vote_counts(d, winners_backfilled, audit, is_winner):
             if str(x["City"]).strip():
                 person[(ccity(x["City"]), fold(x["Last Name"]), given(x["First Name"]))].add(s)
             prov[(cprov(x["Province"]), fold(x["Last Name"]), given(x["First Name"]))].add(s)
-    # A winner's own backfilled record for the same cycle, so the two published files never
-    # disagree about the same person (the winners file resolves more, via its surname-only tier).
+    # A winner's own record for the same cycle, so the two published files agree.
     same = defaultdict(set)
     for _, x in winners_backfilled.iterrows():
         s = str(x["Sex"]).strip()
@@ -611,8 +569,8 @@ def add_sex_to_vote_counts(d, winners_backfilled, audit, is_winner):
     prv = [cprov(p) for p in d["province"]]
     ln = [fold(x) for x in d["last_name"]]
     gv = [given(x) for x in d["first_name"]]
-    # The derived lookup keys on extract_given, which recovers names the plain first-token split
-    # misses; the person/winner tiers keep their original key so no already-assigned row moves.
+    # The derived lookup keys on extract_given; the person/winner tiers keep their original key
+    # so no already-assigned row moves.
     gd = [extract_given(f, m) for f, m in zip(d["first_name"], d["middle_name"])]
     sex, src = [], []
     for w, y, pos, c, p, l, g, g2 in zip(is_winner, d["year"], d["position"], city, prv, ln, gv, gd):
@@ -658,8 +616,7 @@ def apply():
     AUDIT.parent.mkdir(parents=True, exist_ok=True)
     new = pd.DataFrame(audit)
     if AUDIT.exists():
-        # Keep earlier entries: a re-run only resolves what is still blank, so writing just this
-        # run's rows would silently drop the provenance of everything already filled.
+        # A re-run only resolves what is still blank, so keep the earlier entries.
         prev = pd.read_csv(AUDIT, dtype=str).fillna("")
         new = pd.concat([prev, new.astype(str)], ignore_index=True).drop_duplicates()
     new.to_csv(AUDIT, index=False)

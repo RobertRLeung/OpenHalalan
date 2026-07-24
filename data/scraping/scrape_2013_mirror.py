@@ -1,23 +1,22 @@
 """
-Recover MISSING 2013 municipalities from Rappler's /2010/ result pages.
+Recover missing 2013 municipalities from Rappler's /2010/ result pages.
 
-NOTE ON WHAT THIS ACTUALLY IS. The pages live at /2010/ URLs, but they are NOT 2010 data.
-The Internet Archive only captured them in 2016-2018, and by then the Rappler site served
-2013 content at those addresses. Three checks confirm it:
-  * 2010 was a PRESIDENTIAL election, yet these pages carry no presidential race;
-  * overlapping municipalities byte-match the /2013/ scrape exactly; and
-  * the province governors are the 2013 winners (Ilocos Sur = Singson, not 2010's Savellano).
-So this is a second mirror of 2013 - and crucially it covers provinces whose /2013/ pages were
-never archived (Ilocos Sur, Cagayan, Antique), filling ~65 municipalities that scrape_2013 missed.
+The pages sit at /2010/ URLs but hold 2013 data: the Internet Archive only captured them in
+2016-2018, by which time Rappler served 2013 content there. Three checks confirm it:
 
-Same HTML layout, so the 2013 parser is reused. Output feeds build_vote_counts.load_2013(),
-which merges these municipalities into 2013 (primary /2013/ wins any overlap). 2010 itself
+  * 2010 was a presidential election, yet these pages carry no presidential race;
+  * overlapping municipalities byte-match the /2013/ scrape; and
+  * the governors are the 2013 winners (Ilocos Sur = Singson, not 2010's Savellano).
+
+So this is a second mirror of 2013, and it covers provinces whose /2013/ pages were never
+archived. The layout is the same, so the 2013 parser is reused. Output feeds
+build_vote_counts.load_2013(), where the primary /2013/ scrape wins any overlap. 2010 itself
 stays national-only, from the Ianmaps source.
 
-    python data/scraping/scrape_2010_rappler.py --urls / --download / --parse
+    python data/scraping/scrape_2013_mirror.py --urls / --download / --parse
       -> data/processed/rappler_2013_mirror.csv
 
-Politeness: serial fetches with backoff, cached to disk, resumable - identical to 2013.
+Serial fetches with backoff, cached to disk, resumable.
 """
 import argparse
 import csv
