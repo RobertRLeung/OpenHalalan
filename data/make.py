@@ -19,7 +19,7 @@ Stages, in dependency order:
               2. build_winners_from_ballots.py  vote counts     -> processed/winners_{year}.csv
               3. merge_winners.py               source 2004-2016 + ballot-derived cycles
                                                                 -> output/NLE_Winners_2004-2025.csv
-              4. backfill_middle_names.py       COMELEC List of Elected Candidates + v8.5
+              4. backfill_person_fields.py       COMELEC List of Elected Candidates + v8.5
                                                 -> fills 2016-2025 middle names in both outputs
 
   audit       both datasets -> data/audit/{issues,coverage_*}.csv
@@ -47,7 +47,7 @@ STAGES = {
         HERE / "compiling" / "merge_winners.py",
         # Last: fill the 2016-2025 middle names both files miss, from the COMELEC List of
         # Elected Candidates + v8.5. Runs on the finished outputs, so it stays after the merge.
-        (HERE / "compiling" / "backfill_middle_names.py", "--apply"),
+        (HERE / "compiling" / "backfill_person_fields.py", "--apply"),
     ],
     "audit": [
         HERE / "audit" / "audit.py",

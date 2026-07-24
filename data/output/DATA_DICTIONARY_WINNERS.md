@@ -1,6 +1,6 @@
 # Data Dictionary — `NLE_Winners_2004-2025.csv`
 
-One row per **winning** candidate per office per election cycle. **157,333 rows, 12 columns.**
+One row per **winning** candidate per office per election cycle. **157,333 rows, 14 columns.**
 
 Rebuild with `python run_all.py`. Audit with `python data/audit/make.py`.
 
@@ -51,8 +51,8 @@ middle names are recorded as initials.
 | `Last Name` | string | Surname, upper case. |
 | `First Name` | string | Given name, upper case. |
 | `Middle Name` | string | Middle name — a married woman's is her maiden surname, which is how one traces marriage ties between families. **~90% filled for 2004–2013.** The ballot-fed cycles (2016–2025) reach **87 / 88 / 80 / 56%** after a backfill from authoritative winners-only sources; see `Middle Name Source` and the note below. |
-| `Middle Name Source` | string | Where the `Middle Name` came from: **`original`** = present in the cycle's own source; **`comelec_lec`** = COMELEC's official List of Elected Candidates (2016/19/22), the authoritative same-election source; **`v8.5`** = the political-dynasty v8.5 file; **`self-prior`** = the person's own record in an earlier cycle (2025 only, since no 2025 list exists yet — **lower confidence**, names recur across towns and generations); **blank** = still unknown. Every backfilled cell is also listed in [`data/audit/middle_name_backfill.csv`](../audit/middle_name_backfill.csv). |
-| `Title` | string | Honorific, where the source gave one: `ATTY.`, `DOC`, `DR.`, `ENGR.`, and the Moro honorifics `DATU`, `BAI`, `HADJI`. Usually empty. |
+| `Middle Name Source` | string | Where the `Middle Name` came from: **`original`** = present in the cycle's own source; **`comelec_lec`** = COMELEC's official List of Elected Candidates (2016/19/22), the authoritative same-election source; **`v8.5`** = the political-dynasty v8.5 file; **`self-prior`** = the person's own record in an earlier cycle (2025 only, since no 2025 list exists yet — **lower confidence**, names recur across towns and generations); **blank** = still unknown. Every backfilled cell is also listed in [`data/audit/backfill_audit.csv`](../audit/backfill_audit.csv). |
+| `Title` | string | Honorific, where the source gave one: `ATTY.`, `DOC`, `DR.`, `ENGR.`, and the Moro honorifics `DATU`, `BAI`, `HADJI`. **Empty for ~99% of rows, and that is real** — COMELEC's lists print no honorifics and only ~1–2% of candidates register one, so this cannot be backfilled the way `Middle Name` and `Sex` can. Spelling variants are folded (`ATTY` → `ATTY.`) so the column can be filtered on. |
 | `Full Name` | string | **Canonical `SURNAME, FIRST MIDDLE` in every cycle.** Joins directly against `candidate_name` in the vote-counts dataset. |
 | `Position` | string | One of the seven offices above. |
 | `Party` | string | Canonical party code. Spellings of the same party are unified across cycles; real mergers are **not** — see below. |
@@ -60,7 +60,8 @@ middle names are recorded as initials.
 | `Province` | string | Canonical province or NCR district. Stable across cycles. |
 | `City` | string | City / municipality. Present for the **municipal** offices (mayor, vice mayor, councilor): from **2016** on it is the canonical name off a scraped ballot (matching `city` in the vote-counts dataset); for **2001** it is the name as printed in the List of Elected Candidates. Blank for provincial and district offices (a governor has no city) and for 2004–2013, which predate any ballot-level source. |
 | `Region` | string | Canonical region. Blank only for the nationwide races. |
-| `Sex` | string | `M` or `F`, from COMELEC's official List of Elected Candidates. Populated for **2001** and most of **2004–2022** — matched onto our rows by name (98% of 2004–2013; ~70–76% of 2016–2022, where our ballot-derived names use nicknames the lists spell out in full). Assigned only on a confident (year, office, surname, given) match or a gender-consistent first name — **never guessed** — so the unmatched remainder and all of **2025** (COMELEC has not posted its 2025 list) are left blank. About 78% filled overall. |
+| `Sex` | string | `M` or `F`, ultimately from COMELEC's official List of Elected Candidates, which prints a SEX column in **every** cycle it covers (2001–2022). **~98% filled for 2001–2013, 95 / 95 / 94% for 2016 / 2019 / 2022, and 75% for 2025** (COMELEC has not posted a 2025 list, so that cycle is inferred). Never guessed at random — see `Sex Source` for how each value was obtained. About 94% filled overall. |
+| `Sex Source` | string | How `Sex` was obtained: **`prior`** = already present before the backfill step (native for 2001, name-matched by `merge_winners` for 2004–2022); **`comelec_lec`** = matched to that same election's official List of Elected Candidates on city + surname + given name; **`self-prior`** = the same person's record in another cycle (sex is stable, so this is safe); **`given-name`** = a first name that is ≥99% one sex across COMELEC's own lists (**inferred, not observed** — exclude these if you need observed sex only); **blank** = still unknown. Cross-checked against the official lists, the pre-existing values agree **99.4–99.5%** of the time. |
 
 No vote totals here — this records *who won*. For votes, use the vote-counts dataset.
 
