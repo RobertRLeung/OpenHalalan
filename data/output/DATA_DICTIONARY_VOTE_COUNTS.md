@@ -112,19 +112,31 @@ municipality's file because national races are tallied locally.
 | `rank` | int | **COMELEC's alphabetical index — NOT a vote standing.** See the warning below. |
 | `is_national_race` | bool | True for President / Vice President / Senator / Party List. |
 | `is_geographic` | bool | False for non-geographic tally categories (see LAV below). |
-| `sex` | string | `M` or `F` for the candidate. **This file's sex covers every CANDIDATE, not just winners**, which is what makes it possible to compare women *running* with women *winning* — the winners dataset cannot answer that. For the **local offices** (mayor, vice mayor, councilor) it reaches **67–79% of all candidates** and **95–97% of the winners**. It is near-empty for the nationwide races, where `PARTY LIST` rows are organisations rather than people and presidential ballot names are nicknames (`BONGBONG`, `LENI`) that appear in no official list. See `sex_source` and the caveat below. |
-| `sex_source` | string | How `sex` was obtained, most reliable first: **`winner-match`** = this row is the race winner and was matched to their own record in the winners dataset; **`person-match`** = matched to a named person in COMELEC's List of Elected Candidates or the winners data; **`given-name`** = a first name that is ≥99% one sex across COMELEC's own lists — **an inference, not an observation**; **blank** = unknown. |
+| `sex` | string | `M` or `F` for the candidate. **This file's sex covers every CANDIDATE, not just winners**, which is what makes it possible to compare women *running* with women *winning* — the winners dataset cannot answer that. Across the **local (non-nationwide) races** it covers **83.7%** of candidate rows — by cycle 2013 87.5%, 2016 84.9%, 2019 84.6%, 2022 83.1%, 2025 79.8% — and ~95–97% of the winners. It is near-empty for the nationwide races, where `PARTY LIST` rows are organisations rather than people and presidential ballot names are nicknames (`BONGBONG`, `LENI`) that appear in no official list. Most of the coverage is a first-name inference: see `sex_source` and the caveat below. |
+| `sex_source` | string | How `sex` was obtained, most reliable first. **Observed** (the row was tied to a named person): **`winner-match`** = this row is the race winner, matched to their own record in the winners dataset; **`person-match`** = matched to a named person in COMELEC's List of Elected Candidates or the winners data. **Inferred from the first name only** — *not* an observation of this candidate: **`given-name-derived`** = the given name's sex learned from the winners dataset's own `Sex` column, kept only where one sex holds for ≥80% of at least 2 winners; **`given-name`** = the older static list (≥99% of ≥5 winners in COMELEC's lists). **blank** = unknown. Filter to `winner-match`/`person-match` for observed-only. |
 
 ### ⚠ `sex` is only partly observed — and the unobserved part is not missing at random
 
 COMELEC's official lists name **only winners**, so a losing candidate can be identified by name
 only if they won some other cycle. Everyone else falls back to a first-name inference, and
 candidates whose ballot name is a nickname (`BONG`, `JUN`, `INDAY`) or a rare given name get no
-sex at all. The result is that **`sex` is far better populated for winners than for losers**,
-which is exactly the comparison a turnout- or candidacy-style analysis wants to make.
+sex at all.
 
-Filter on `sex_source` before computing any rate. Treating the filled rows as a random sample of
-candidates will overstate whatever winners do, because winners are over-represented among them.
+**Only 155k of the 751k filled rows (21%) are an observation of that candidate.** The other 79%
+are `given-name-derived` / `given-name` — the sex typical of that *first name*, not of the
+person. That inference is deliberately conservative (a name is used only where one sex holds for
+≥80% of at least 2 winners), but it cannot represent anyone who breaks the pattern, so a
+name-inferred sex should never be treated as this individual's recorded sex.
+
+Two consequences for any rate you compute:
+
+- **The observed part is winner-biased.** Winners are over-represented among `winner-match` /
+  `person-match`, so treating the filled rows as a random sample of candidates will pull results
+  toward whatever winners do — precisely the axis a "who runs vs who wins" analysis compares.
+- **The inferred part is name-biased.** Nicknamed and rare-named candidates are missing entirely,
+  and they are not distributed evenly across regions or cycles.
+
+Filter on `sex_source` before computing any rate, and report which tiers you kept.
 
 ### ⚠ `rank` does not mean what it looks like
 

@@ -35,7 +35,7 @@ import argparse
 import re
 import sys
 import unicodedata
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import pandas as pd
@@ -44,7 +44,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT.parent))
 sys.path.insert(0, str(ROOT / "scraping"))
 
-from normalize import canonical_province, canonical_city  # noqa: E402
+from normalize import canonical_province, canonical_city, extract_given  # noqa: E402
 import scrape_listelected as SL  # noqa: E402
 import fitz  # noqa: E402
 
@@ -280,6 +280,43 @@ def _given_sex_map():
     if not SEX_BY_GIVEN.exists():
         return {}
     return dict(pd.read_csv(SEX_BY_GIVEN, dtype=str).itertuples(index=False))
+
+
+SEX_BY_GIVEN_DERIVED = ROOT / "processed" / "sex_by_given_derived.csv"
+
+def winners_given_sex_map(winners):
+    """given name -> sex, learned from the winners dataset's own `Sex` column.
+
+    The shipped `sex_by_given.csv` is a static list of ~3,000 names built from COMELEC's lists at
+    a >=99% purity / >=5 occurrence bar. The winners file now carries Sex on ~157k rows at ~94%,
+    which is a far richer base, so the lookup is relearned from it here.
+
+    A name is kept only if its modal sex holds for **>=80% of at least 2 winners**. Both bounds
+    are load-bearing: they are what keeps genuinely unisex names (and one-off spellings) out,
+    since assigning those would be worse than leaving the row blank. The given name comes from
+    `extract_given`, the same extractor the dynasty build uses, so "Ma." -> MARIA, leading Hadji
+    honorifics and hyphen/apostrophe names all key identically on both sides.
+
+    This is written to sex_by_given_derived.csv rather than over sex_by_given.csv: the strict
+    static list is what merge_winners uses to assign the winners' OWN sex, and loosening that bar
+    would feed this map's output back into its own input."""
+    ws = winners[winners["Sex"].astype(str).str.strip() != ""]
+    tab = defaultdict(Counter)
+    for f, m, s in zip(ws["First Name"], ws["Middle Name"], ws["Sex"].astype(str).str.strip()):
+        g = extract_given(f, m)
+        if g:
+            tab[g][s] += 1
+    out = {}
+    for name, counts in tab.items():
+        total = sum(counts.values())
+        top, n = counts.most_common(1)[0]
+        if total >= 2 and n / total >= 0.8:
+            out[name] = top
+    SEX_BY_GIVEN_DERIVED.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(sorted(out.items()), columns=["Given", "Sex"]).to_csv(SEX_BY_GIVEN_DERIVED, index=False)
+    print(f"  learned {len(out):,} given-name -> sex entries from the winners "
+          f"(vs {len(_given_sex_map()):,} in the static list)")
+    return out
 
 def resolve_sex_for_year(winners, year, given_map):
     """{row_index: (sex, source)} for rows of one cycle with a blank Sex.
@@ -567,14 +604,18 @@ def add_sex_to_vote_counts(d, winners_backfilled, audit, is_winner):
             same[(str(x["Year"]), ccity(x["City"]), x["Position"], fold(x["Last Name"]), given(x["First Name"]))].add(s)
     uniq = lambda t: {k: next(iter(v)) for k, v in t.items() if len(v) == 1}
     person, prov, same = uniq(person), uniq(prov), uniq(same)
+    derived_map = winners_given_sex_map(winners_backfilled)
     given_map = _given_sex_map()
 
     city = [ccity(c) for c in d["city"]]
     prv = [cprov(p) for p in d["province"]]
     ln = [fold(x) for x in d["last_name"]]
     gv = [given(x) for x in d["first_name"]]
+    # The derived lookup keys on extract_given, which recovers names the plain first-token split
+    # misses; the person/winner tiers keep their original key so no already-assigned row moves.
+    gd = [extract_given(f, m) for f, m in zip(d["first_name"], d["middle_name"])]
     sex, src = [], []
-    for w, y, pos, c, p, l, g in zip(is_winner, d["year"], d["position"], city, prv, ln, gv):
+    for w, y, pos, c, p, l, g, g2 in zip(is_winner, d["year"], d["position"], city, prv, ln, gv, gd):
         v = same.get((y, c, pos, l, g)) if w else None
         lab = "winner-match" if v else None
         if not v:
@@ -583,6 +624,9 @@ def add_sex_to_vote_counts(d, winners_backfilled, audit, is_winner):
         if not v:
             v = prov.get((p, l, g))
             lab = "person-match" if v else None
+        if not v:
+            v = derived_map.get(g2)
+            lab = "given-name-derived" if v else None
         if not v:
             v = given_map.get(g)
             lab = "given-name" if v else None

@@ -95,6 +95,43 @@ def _fold(value):
     return text or None
 
 
+# ---------------------------------------------------------------- given-name extraction
+# Shared by the site's dynasty build and the sex backfill, so a given name keys the same way in
+# both. Deliberately NOT built on _fold: that turns a hyphen into a space, which would split
+# "Mar-Len" into two tokens, whereas a given name needs it joined ("MARLEN").
+GIVEN_HONORIFICS = {"H", "HADJI", "HADJ", "HAJI", "HJ"}
+
+
+def _given_fold(value):
+    if pd.isna(value):
+        return ""
+    text = unicodedata.normalize("NFKD", str(value))
+    text = "".join(c for c in text if not unicodedata.combining(c)).upper()
+    return re.sub(r"\s+", " ", re.sub(r"[^A-Z0-9 ]", " ", text)).strip()
+
+
+def _first_token(value):
+    if pd.isna(value):
+        return []
+    return _given_fold(str(value).replace("'", "").replace("-", "")).split()
+
+
+def extract_given(first_name, middle_name=""):
+    """The first given name, recovering it where a naive first-token split fails: apostrophes
+    and hyphens are joined rather than split ("L'Michelli" -> LMICHELLI, "Mar-Len" -> MARLEN),
+    a leading Hadji honorific is dropped ("H. Yasser" -> YASSER), and when the first name is a
+    lone honorific the real given is taken from the middle field ("Golo, H." [Yasser] -> YASSER).
+    "Ma." expands to Maria."""
+    toks = _first_token(first_name)
+    while toks and toks[0] in GIVEN_HONORIFICS:
+        toks = toks[1:]
+    if not toks:                   # first name was a lone honorific; the given sits in the middle
+        toks = _first_token(middle_name)
+    if not toks:
+        return ""
+    return "MARIA" if toks[0] == "MA" else toks[0]   # "Ma." is the Filipino abbreviation for Maria
+
+
 def canonical_region(value):
     folded = _fold(value)
     if folded is None:

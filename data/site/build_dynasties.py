@@ -135,26 +135,10 @@ def fold(s):
     return re.sub(r"\s+", " ", re.sub(r"[^A-Z0-9 ]", " ", s)).strip()
 
 
-# Tokens that lead a first name but aren't the given name: a leaked "H." (Hadji) honorific.
-GIVEN_HONORIFICS = {"H", "HADJI", "HADJ", "HAJI", "HJ"}
-
-def _first_token(s):
-    return fold(str(s).replace("'", "").replace("-", "")).split() if not pd.isna(s) else []
-
-def extract_given(first_name, middle_name=""):
-    """The first given name, recovering it where a naive first-token split fails: apostrophes
-    and hyphens are joined rather than split ("L'Michelli" -> LMICHELLI, "Mar-Len" -> MARLEN),
-    a leading Hadji honorific is dropped ("H. Yasser" -> YASSER), and when the first name is a
-    lone honorific the real given is taken from the middle field ("Golo, H." [Yasser] -> YASSER).
-    "Ma." expands to Maria."""
-    toks = _first_token(first_name)
-    while toks and toks[0] in GIVEN_HONORIFICS:
-        toks = toks[1:]
-    if not toks:                       # first name was a lone honorific; the given sits in the middle
-        toks = _first_token(middle_name)
-    if not toks:
-        return ""
-    return "MARIA" if toks[0] == "MA" else toks[0]   # "Ma." is the Filipino abbreviation for Maria
+# extract_given lives in data/compiling/normalize.py so this build and the sex backfill key a
+# given name identically; importing it here keeps one definition rather than two that can drift.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "compiling"))
+from normalize import extract_given  # noqa: E402
 
 
 def city_key(s):
