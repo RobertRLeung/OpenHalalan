@@ -143,6 +143,7 @@ def _split_name(full):
 _HDR = re.compile(r"^PROVINCE/CITY/MUN\.?\s*:\s*(.+)$")          # 2022 layout: "CITY, PROVINCE"
 _REGION_PFX = re.compile(r"^REGION\s*:\s*(.+)$")                 # 2016 layout
 _PROV_PFX = re.compile(r"^PROVINCE\s*:\s*(.+)$")                 # 2016 layout
+_PROV_LABEL = re.compile(r"^(REGION|PROVINCE)\s*:\s*$")          # 2004: label alone, value follows
 _SEX = {"M", "F", "MALE", "FEMALE"}
 _SEXMAP = {"M": "M", "F": "F", "MALE": "M", "FEMALE": "F"}
 _DISTRICT = re.compile(r"^(\d+(ST|ND|RD|TH)|LONE|FIRST|SECOND|THIRD|FOURTH|FIFTH|SIXTH|"
@@ -160,7 +161,13 @@ def _extract(year, cat):
     loc_buf, rows = [], []
     pending = None          # a name awaiting its (party, sex) pair
     pend_ct = 0
+    expect_prov = False     # 2004 prints "PROVINCE:" and its value on separate lines
     for s in _clean_lines(doc):
+        if _PROV_LABEL.match(s):
+            expect_prov = s.upper().startswith("PROVINCE"); loc_buf = []; continue
+        if expect_prov and _match_pos(s) is None and "," not in s and not _is_region(s):
+            province = s.strip(); expect_prov = False; loc_buf = []; continue
+        expect_prov = False
         if pending is not None:
             if re.fullmatch(r"\d+\.?", s):
                 continue                    # rank marker inside the record
@@ -335,6 +342,36 @@ def canon_title(t):
     return TITLE_CANON.get(key, str(t).strip())
 
 
+# --------------------------------------------------------------------------- city (2004-2013)
+# The inherited 2004-2013 winners came from v8.5, which has no town, so their City is blank. The
+# LEC for those years does print the town, so it is recovered here - the sole blocker on
+# municipal-level networks before 2016.
+CITY_LEC_YEARS = (2004, 2007, 2010, 2013)
+
+def resolve_city_for_year(winners, year):
+    """Recover the town for one cycle's local winners from that year's LEC. Match on province +
+    position + surname + given, then surname alone within the province - the LEC is the same
+    winner list, so a surname unique to a province's winners is one person."""
+    recs = [r for r in lec_records(year) if r[2] in CITY_POS and r[1]]
+    exact, byprov = defaultdict(set), defaultdict(set)
+    for prov, city, pos, last, first, _mid, _sex in recs:
+        cp, cc = cprov(prov), (canonical_city(city) or "").strip()
+        if cc:
+            exact[(cp, pos, fold(last), given(first))].add(cc)
+            byprov[(cp, pos, fold(last))].add(cc)
+    exact = {k: next(iter(v)) for k, v in exact.items() if len(v) == 1}
+    byprov = {k: next(iter(v)) for k, v in byprov.items() if len(v) == 1}
+    out = {}
+    sub = winners[(winners["Year"] == str(year)) & winners["Position"].isin(CITY_POS)
+                  & (winners["City"].astype(str).str.strip() == "")]
+    for i, r in sub.iterrows():
+        cp, pos, l, g = cprov(r["Province"]), r["Position"], fold(r["Last Name"]), given(r["First Name"])
+        c = exact.get((cp, pos, l, g)) or byprov.get((cp, pos, l))
+        if c:
+            out[i] = (c, "comelec_lec")
+    return out
+
+
 def crossyear_tuples(winners):
     """Every winner source across all cycles, for the 2025 self-match."""
     for y in LEC_YEARS:
@@ -452,6 +489,16 @@ def apply_winners():
                           "first_name": r["First Name"], "field": "Sex", "value_filled": val,
                           "source": label})
     W["Sex Source"] = ssrc
+
+    # ---- City (2004-2013 local offices; the inherited source had no town) ----
+    for year in CITY_LEC_YEARS:
+        for i, (city, label) in resolve_city_for_year(W, year).items():
+            r = W.loc[i]
+            W.at[i, "City"] = city
+            audit.append({"dataset": "winners", "year": year, "province": r["Province"],
+                          "city": city, "position": r["Position"], "last_name": r["Last Name"],
+                          "first_name": r["First Name"], "field": "City", "value_filled": city,
+                          "source": label})
 
     # ---- Title: variant folding only (see note above; nothing is invented) ----
     before = W["Title"].astype(str).str.strip()
@@ -601,7 +648,7 @@ def add_sex_to_vote_counts(d, winners_backfilled, audit, is_winner):
 
 def apply():
     W, audit = apply_winners()
-    for field, label in (("Middle Name", "middle names"), ("Sex", "sex values")):
+    for field, label in (("Middle Name", "middle names"), ("Sex", "sex values"), ("City", "towns")):
         rows = [a for a in audit if a["dataset"] == "winners" and a.get("field") == field]
         if not rows:
             continue

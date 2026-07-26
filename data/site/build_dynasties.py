@@ -323,8 +323,7 @@ def main():
 
     muni = w[w.Position.isin(MUNICIPAL)]
     have_city = muni.city_code.notna().mean() * 100
-    say(f"  {len(w):,} winner-rows mapped to PSGC; municipal rows with a city: "
-        f"{have_city:.0f}% (0% before 2016 by construction)")
+    say(f"  {len(w):,} winner-rows mapped to PSGC; municipal rows with a city: {have_city:.0f}%")
 
     # ---------------------------------------------------------------- the reading
     # A person is one (region, surname, first name), so the same name in two regions is two
