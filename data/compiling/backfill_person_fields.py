@@ -453,6 +453,31 @@ def lookup(idx, prov, city, pos, last, gv, allow_surname_only=False):
 # "middle" that is usually a nickname or suffix rather than a real maiden name.
 WEAK_MID_SOURCES = {"", "self-prior", "original"}
 
+
+def resolve_2001(winners):
+    """2001's List of Elected Candidates prints the middle name as a bare INITIAL. Upgrade it to
+    the full middle from the person's record in another cycle, but only where that middle starts
+    with the recorded initial - which rejects a same-name match to a different person."""
+    city_g, prov_g = defaultdict(set), defaultdict(set)
+    for _, x in winners[winners["Middle Name"].apply(has_mid)].iterrows():
+        la, gv, mid = fold(x["Last Name"]), given(x["First Name"]), x["Middle Name"].strip()
+        if str(x["City"]).strip():
+            city_g[(ccity(x["City"]), la, gv)].add(mid)
+        prov_g[(cprov(x["Province"]), la, gv)].add(mid)
+    u = lambda t: {k: next(iter(v)) for k, v in t.items() if len(v) == 1}
+    city_g, prov_g = u(city_g), u(prov_g)
+    out = {}
+    for i, r in winners[winners["Year"] == "2001"].iterrows():
+        ini = str(r["Middle Name"]).replace(".", "").strip()
+        if len(ini) != 1:                      # already full (or empty) - nothing to upgrade
+            continue
+        la, gv = fold(r["Last Name"]), given(r["First Name"])
+        m = (city_g.get((ccity(r["City"]), la, gv)) if r["Position"] in CITY_POS
+             else prov_g.get((cprov(r["Province"]), la, gv)))
+        if m and fold(m)[:1] == fold(ini):
+            out[i] = (m, "self-prior")
+    return out
+
 # --------------------------------------------------------------------------- driver
 def resolve_for_year(winners, year, src=None):
     """Resolve middle names for one cycle from that year's authoritative list, then a weaker
@@ -464,7 +489,9 @@ def resolve_for_year(winners, year, src=None):
     # The authoritative same-term source (DILG for 2025, the LEC for 2016/19/22) may overwrite a
     # weak value; the secondary source only fills blanks. 2004-2013 are left on v8.5: the older
     # LEC PDFs list a JR./SR. suffix where the maiden name should be, so they are a worse source
-    # for those cycles, not a better one.
+    # for those cycles, not a better one. 2001's List gives only an initial - handled separately.
+    if year == 2001:
+        return resolve_2001(winners)
     if year == 2025:
         auth_label, auth_idx, auth_is_dilg = "dilg", dilg_index(), True
         fills = [(build_index(crossyear_tuples(winners)), "self-prior", False)]
@@ -496,7 +523,7 @@ def report():
     _V85 = pd.read_csv(V85, dtype=str).fillna("")
     W = pd.read_csv(WINNERS, dtype=str).fillna("")
     print("Backfill coverage (blank middle names filled), by cycle:")
-    for year in (2016, 2019, 2022, 2025):
+    for year in (2001, 2016, 2019, 2022, 2025):
         blank = ((W["Year"] == str(year)) & (~W["Middle Name"].apply(has_mid))).sum()
         got = resolve_for_year(W, year)
         print(f"  {year}: {len(got):>5}/{blank:<5} blanks filled ({100*len(got)/max(blank,1):.0f}%)")
@@ -516,7 +543,7 @@ def apply_winners():
         src = pd.Series([""] * len(W), index=W.index)
         src[W["Middle Name"].apply(has_mid)] = "original"
     audit = []
-    for year in (2016, 2019, 2022, 2025):
+    for year in (2016, 2019, 2022, 2025, 2001):
         for i, (mid, label) in resolve_for_year(W, year, src=src).items():
             r = W.loc[i]
             replaced = r["Middle Name"] if has_mid(r["Middle Name"]) else ""

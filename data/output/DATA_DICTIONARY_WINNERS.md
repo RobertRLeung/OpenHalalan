@@ -39,8 +39,10 @@ is still held back: its winners are organisations, not people, and its seats nee
 allocation. 2004–2013 predate the ballot-level source, so they carry no nationwide winners.
 
 **2001.** This cycle comes from COMELEC's official *List of Elected Candidates* PDFs (winners
-only — there are no 2001 vote counts), the same source that supplies the `Sex` column. Its
-middle names are recorded as initials.
+only — there are no 2001 vote counts), the same source that supplies the `Sex` column. Its List
+prints the middle name as a bare initial; where the same person appears in a later cycle with a
+full middle that starts with that initial, the initial is upgraded to the full name (raising 2001
+from ~7% to ~42% full), and the rest are left as the recorded initial.
 
 ---
 
@@ -50,7 +52,7 @@ middle names are recorded as initials.
 |---|---|---|
 | `Last Name` | string | Surname, upper case. |
 | `First Name` | string | Given name, upper case. |
-| `Middle Name` | string | Middle name — a married woman's is her maiden surname, which is how one traces marriage ties between families. **~90% filled for 2004–2013.** The ballot-fed cycles (2016–2025) reach **~89 / 90 / 81 / 88%** after a backfill from authoritative winners-only sources; see `Middle Name Source` and the note below. |
+| `Middle Name` | string | Middle name — a married woman's is her maiden surname, which is how one traces marriage ties between families. **~90% filled for 2004–2013; 2001 is initials, ~42% upgraded to full.** The ballot-fed cycles (2016–2025) reach **~89 / 90 / 81 / 88%** after a backfill from authoritative winners-only sources; see `Middle Name Source` and the note below. |
 | `Middle Name Source` | string | Where the `Middle Name` came from: **`original`** = present in the cycle's own source; **`comelec_lec`** = COMELEC's official List of Elected Candidates (2016/19/22), the authoritative same-election source; **`dilg`** = DILG's directory of LGU elective officials for 2025–2028, the authoritative same-term source for 2025; **`v8.5`** = the political-dynasty v8.5 file; **`self-prior`** = the person's own record in an earlier cycle (**lower confidence** — names recur across towns and generations); **blank** = still unknown. Every backfilled cell is also listed in [`data/audit/backfill_audit.csv`](../audit/backfill_audit.csv). |
 | `Title` | string | Honorific, where the source gave one: `ATTY.`, `DOC`, `DR.`, `ENGR.`, and the Moro honorifics `DATU`, `BAI`, `HADJI`. **Empty for ~99% of rows, and that is real** — COMELEC's lists print no honorifics and only ~1–2% of candidates register one, so this cannot be backfilled the way `Middle Name` and `Sex` can. Spelling variants are folded (`ATTY` → `ATTY.`) so the column can be filtered on. |
 | `Full Name` | string | **Canonical `SURNAME, FIRST MIDDLE` in every cycle.** Joins directly against `candidate_name` in the vote-counts dataset. |
