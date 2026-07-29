@@ -50,8 +50,8 @@ middle names are recorded as initials.
 |---|---|---|
 | `Last Name` | string | Surname, upper case. |
 | `First Name` | string | Given name, upper case. |
-| `Middle Name` | string | Middle name — a married woman's is her maiden surname, which is how one traces marriage ties between families. **~90% filled for 2004–2013.** The ballot-fed cycles (2016–2025) reach **87 / 88 / 80 / 56%** after a backfill from authoritative winners-only sources; see `Middle Name Source` and the note below. |
-| `Middle Name Source` | string | Where the `Middle Name` came from: **`original`** = present in the cycle's own source; **`comelec_lec`** = COMELEC's official List of Elected Candidates (2016/19/22), the authoritative same-election source; **`v8.5`** = the political-dynasty v8.5 file; **`self-prior`** = the person's own record in an earlier cycle (2025 only, since no 2025 list exists yet — **lower confidence**, names recur across towns and generations); **blank** = still unknown. Every backfilled cell is also listed in [`data/audit/backfill_audit.csv`](../audit/backfill_audit.csv). |
+| `Middle Name` | string | Middle name — a married woman's is her maiden surname, which is how one traces marriage ties between families. **~90% filled for 2004–2013.** The ballot-fed cycles (2016–2025) reach **~89 / 90 / 81 / 88%** after a backfill from authoritative winners-only sources; see `Middle Name Source` and the note below. |
+| `Middle Name Source` | string | Where the `Middle Name` came from: **`original`** = present in the cycle's own source; **`comelec_lec`** = COMELEC's official List of Elected Candidates (2016/19/22), the authoritative same-election source; **`dilg`** = DILG's directory of LGU elective officials for 2025–2028, the authoritative same-term source for 2025; **`v8.5`** = the political-dynasty v8.5 file; **`self-prior`** = the person's own record in an earlier cycle (**lower confidence** — names recur across towns and generations); **blank** = still unknown. Every backfilled cell is also listed in [`data/audit/backfill_audit.csv`](../audit/backfill_audit.csv). |
 | `Title` | string | Honorific, where the source gave one: `ATTY.`, `DOC`, `DR.`, `ENGR.`, and the Moro honorifics `DATU`, `BAI`, `HADJI`. **Empty for ~99% of rows, and that is real** — COMELEC's lists print no honorifics and only ~1–2% of candidates register one, so this cannot be backfilled the way `Middle Name` and `Sex` can. Spelling variants are folded (`ATTY` → `ATTY.`) so the column can be filtered on. |
 | `Full Name` | string | **Canonical `SURNAME, FIRST MIDDLE` in every cycle.** Joins directly against `candidate_name` in the vote-counts dataset. |
 | `Position` | string | One of the seven offices above. |
@@ -206,14 +206,15 @@ COMELEC scrapes.
    offices are the only place a ballot-derived winner can still be wrong.
 
 5. **`Middle Name` for 2016–2025 is backfilled, not native.** The ballot feeds report only
-   `SURNAME, FIRST`, so these cycles originally had ~87% blank middles. They are filled from
-   COMELEC's official List of Elected Candidates (2016/19/22) and the v8.5 file, matched to the
-   **same election** (a winner and their List twin are the same person), reaching **87 / 88 / 80%**;
-   2025 has no List yet and is filled only from a person's own earlier record (**56%, lower
-   confidence**). Coverage is thus uneven across the 2019→2022→2025 boundary and the *source*
-   differs — check `Middle Name Source` before using middles for kinship inference, and treat
-   `self-prior` rows with caution. Backfilled ~91–95% consistent with the independent v8.5
-   file. **Use `Full Name` as the join key.**
+   `SURNAME, FIRST`, so these cycles originally had ~87% blank middles. They are filled from the
+   authoritative same-term record: COMELEC's List of Elected Candidates for 2016/19/22 and
+   **DILG's directory of LGU elective officials for 2025**, matched by locality + surname + given
+   name, reaching roughly **89 / 90 / 81 / 88%**. A ballot feed sometimes reports its own
+   "middle" that is really a nickname or a `JR.`/`III` suffix; where the authoritative source
+   covers that row, it **overwrites** that value (recorded in the audit's `replaced` column), so
+   `dilg`/`comelec_lec` rows are trustworthy. What remains weakest is `self-prior` (a person's own
+   record in another cycle) — check `Middle Name Source` and treat those with caution before using
+   middles for kinship inference. **Use `Full Name` as the join key.**
 
 6. **`Party` is canonicalised, but party lineages are deliberately NOT merged.**
 

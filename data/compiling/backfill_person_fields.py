@@ -42,6 +42,7 @@ import fitz  # noqa: E402
 WINNERS = ROOT / "output" / "NLE_Winners_2004-2025.csv"
 VOTE_COUNTS = ROOT / "output" / "NLE_Vote_Counts_2010-2025.csv.gz"
 V85 = ROOT / "source" / "political_dynasty_v8.5.csv"
+DILG_2025 = ROOT / "source" / "dilg_lgu_officials_2025.csv"
 AUDIT = ROOT / "audit" / "backfill_audit.csv"
 
 _V85 = None   # v8.5 source frame, loaded once
@@ -247,6 +248,40 @@ def v85_tuples(year):
         if has_mid(x["Middle Name"]):
             yield cprov(x["Province"]), "", x["Position"], fold(x["Last Name"]), given(x["First Name"]), x["Middle Name"].strip()
 
+# --------------------------------------------------------------------------- DILG 2025
+# 2025 has no List of Elected Candidates yet, but DILG's directory of LGU officials names each
+# one with their middle name. It is the authoritative same-term source for 2025 that the LEC is
+# for the other cycles. Local offices only - no House, and no sex column.
+@lru_cache(maxsize=None)
+def _dilg():
+    return pd.read_csv(DILG_2025, dtype=str).fillna("") if DILG_2025.exists() else None
+
+def dilg_index():
+    """DILG middle names keyed by locality + name, IGNORING the office. A middle name belongs to
+    the person, not the seat, so this sidesteps DILG's position labels and matches by town (city
+    offices) or province (everything else); a surname-only tier handles given-name spellings. Any
+    locality+name that maps to two middles is dropped."""
+    d = _dilg()
+    city_g = defaultdict(set); city_l = defaultdict(set)
+    prov_g = defaultdict(set); prov_l = defaultdict(set)
+    if d is not None:
+        for _, x in d.iterrows():
+            if not has_mid(x["MIDDLE NAME"]):
+                continue
+            mid = x["MIDDLE NAME"].strip()
+            last, gv = fold(x["LAST NAME"]), given(x["FIRST NAME"])
+            cc, cp = ccity(x["CITY/MUNICIPALITY"]), cprov(x["PROVINCE"])
+            city_g[(cc, last, gv)].add(mid); city_l[(cc, last)].add(mid)
+            prov_g[(cp, last, gv)].add(mid); prov_l[(cp, last)].add(mid)
+    u = lambda t: {k: next(iter(v)) for k, v in t.items() if len(v) == 1}
+    return u(city_g), u(city_l), u(prov_g), u(prov_l)
+
+def dilg_lookup(idx, prov, city, pos, last, gv):
+    city_g, city_l, prov_g, prov_l = idx
+    if pos in CITY_POS:
+        return city_g.get((city, last, gv)) or city_l.get((city, last))
+    return prov_g.get((prov, last, gv)) or prov_l.get((prov, last))
+
 # --------------------------------------------------------------------------- sex
 # Sex is printed in every LEC cycle, not just the three with usable middle names.
 LEC_SEX_YEARS = (2001, 2004, 2007, 2010, 2013, 2016, 2019, 2022)
@@ -383,49 +418,74 @@ def crossyear_tuples(winners):
         if has_mid(x["Middle Name"]):
             yield cprov(x["Province"]), ccity(x["City"]), x["Position"], fold(x["Last Name"]), given(x["First Name"]), x["Middle Name"].strip()
 
+PROV_POS = GOV_POS | {"PROVINCIAL BOARD MEMBER"}   # offices with no city, keyed by province
+
 def build_index(tuples):
-    """Two lookups, each dropping any key that maps to more than one value.
+    """Three lookups, each dropping any key that maps to more than one value.
 
     City offices deliberately key without province: city parses reliably across all three PDF
     layouts and province does not, and a same-name-town collision is dropped rather than guessed.
-    Governor and vice-governor are one per province, so they key on province and position."""
+    Province offices (governor, vice-governor, board member) have no city and key on province +
+    position + name; a same-name collision within the province is dropped."""
     city_k = defaultdict(set)
     citylast_k = defaultdict(set)
-    gov_k = defaultdict(set)
+    prov_k = defaultdict(set)
     for prov, city, pos, last, gv, mid in tuples:
         if pos in CITY_POS and city:
             city_k[(city, last, gv)].add(mid)
             citylast_k[(city, last)].add(mid)
-        elif pos in GOV_POS:
-            gov_k[(prov, pos, last, gv)].add(mid)
+        elif pos in PROV_POS:
+            prov_k[(prov, pos, last, gv)].add(mid)
     uniq = lambda d: {k: next(iter(v)) for k, v in d.items() if len(v) == 1}
-    return uniq(city_k), uniq(citylast_k), uniq(gov_k)
+    return uniq(city_k), uniq(citylast_k), uniq(prov_k)
 
 def lookup(idx, prov, city, pos, last, gv, allow_surname_only=False):
     """allow_surname_only drops the given name, tolerating nickname spellings. Safe only within
     one election, where a surname unique to a town's winners is one person."""
-    city_k, citylast_k, gov_k = idx
+    city_k, citylast_k, prov_k = idx
     if pos in CITY_POS:
         return city_k.get((city, last, gv)) or (citylast_k.get((city, last)) if allow_surname_only else None)
-    if pos in GOV_POS:
-        return gov_k.get((prov, pos, last, gv))
+    if pos in PROV_POS:
+        return prov_k.get((prov, pos, last, gv))
     return None
 
+# Values an authoritative source may overwrite: a blank, a cross-year guess, or a ballot-fed
+# "middle" that is usually a nickname or suffix rather than a real maiden name.
+WEAK_MID_SOURCES = {"", "self-prior", "original"}
+
 # --------------------------------------------------------------------------- driver
-def resolve_for_year(winners, year):
-    """Resolve blank middle names for one cycle: that year's list, then v8.5. 2025 has neither
-    and falls back to a cross-year self-match on the exact given name."""
+def resolve_for_year(winners, year, src=None):
+    """Resolve middle names for one cycle from that year's authoritative list, then a weaker
+    source. 2016/19/22 use the LEC then v8.5; 2025 uses the DILG directory then a cross-year
+    self-match.
+
+    For 2025, DILG is the same-term official record, so it OVERWRITES a weak existing value
+    (self-prior or the ballot-fed original), not just blanks; the LEC cycles only fill blanks."""
+    # The authoritative same-term source (DILG for 2025, the LEC for 2016/19/22) may overwrite a
+    # weak value; the secondary source only fills blanks. 2004-2013 are left on v8.5: the older
+    # LEC PDFs list a JR./SR. suffix where the maiden name should be, so they are a worse source
+    # for those cycles, not a better one.
     if year == 2025:
-        stages = [(build_index(crossyear_tuples(winners)), "self-prior", False)]
+        auth_label, auth_idx, auth_is_dilg = "dilg", dilg_index(), True
+        fills = [(build_index(crossyear_tuples(winners)), "self-prior", False)]
     else:
-        stages = [(build_index(lec_tuples(year)), "comelec_lec", True),
-                  (build_index(v85_tuples(year)), "v8.5", True)]
+        auth_label, auth_idx, auth_is_dilg = "comelec_lec", build_index(lec_tuples(year)), False
+        fills = [(build_index(v85_tuples(year)), "v8.5", True)]
     out = {}
-    sub = winners[(winners["Year"] == str(year)) & (~winners["Middle Name"].apply(has_mid))]
-    for i, r in sub.iterrows():
-        for idx, label, surname_ok in stages:
-            m = lookup(idx, cprov(r["Province"]), ccity(r["City"]), r["Position"],
-                       fold(r["Last Name"]), given(r["First Name"]), allow_surname_only=surname_ok)
+    for i, r in winners[winners["Year"] == str(year)].iterrows():
+        blank = not has_mid(r["Middle Name"])
+        cur = (src[i] if src is not None else ("" if blank else "original"))
+        prov, city = cprov(r["Province"]), ccity(r["City"])
+        last, gv = fold(r["Last Name"]), given(r["First Name"])
+        if blank or cur in WEAK_MID_SOURCES:
+            m = (dilg_lookup(auth_idx, prov, city, r["Position"], last, gv) if auth_is_dilg
+                 else lookup(auth_idx, prov, city, r["Position"], last, gv, allow_surname_only=True))
+            if m:
+                out[i] = (m, auth_label); continue
+        if not blank:
+            continue
+        for idx, label, surname_ok in fills:
+            m = lookup(idx, prov, city, r["Position"], last, gv, allow_surname_only=surname_ok)
             if m:
                 out[i] = (m, label)
                 break
@@ -457,15 +517,16 @@ def apply_winners():
         src[W["Middle Name"].apply(has_mid)] = "original"
     audit = []
     for year in (2016, 2019, 2022, 2025):
-        for i, (mid, label) in resolve_for_year(W, year).items():
+        for i, (mid, label) in resolve_for_year(W, year, src=src).items():
             r = W.loc[i]
+            replaced = r["Middle Name"] if has_mid(r["Middle Name"]) else ""
             W.at[i, "Middle Name"] = mid
             W.at[i, "Full Name"] = canonical_full_name(r["Last Name"], r["First Name"], mid)
             src[i] = label
             audit.append({"dataset": "winners", "year": year, "province": r["Province"],
                           "city": r["City"], "position": r["Position"], "last_name": r["Last Name"],
                           "first_name": r["First Name"], "field": "Middle Name",
-                          "value_filled": mid, "source": label})
+                          "value_filled": mid, "replaced": replaced, "source": label})
     cols = list(W.columns)
     W["Middle Name Source"] = src
     W = W[cols[:cols.index("Middle Name") + 1] + ["Middle Name Source"] + cols[cols.index("Middle Name") + 1:]]
