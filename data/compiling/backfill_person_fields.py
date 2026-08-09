@@ -383,25 +383,46 @@ def canon_title(t):
 # municipal-level networks before 2016.
 CITY_LEC_YEARS = (2004, 2007, 2010, 2013)
 
-def resolve_city_for_year(winners, year):
+def _province_cities(winners):
+    """Canonical province -> set of its towns, from every row that carries both (2001, 2016-2025)
+    plus the LEC itself. Used to check a town actually belongs to a winner's province."""
+    pc = defaultdict(set)
+    for _, x in winners[winners["City"].astype(str).str.strip() != ""].iterrows():
+        pc[cprov(x["Province"])].add(ccity(x["City"]))
+    for y in CITY_LEC_YEARS:
+        for prov, city, _pos, _last, _first, _mid, _sex in lec_records(y):
+            if city:
+                pc[cprov(prov)].add(ccity(city))
+    return pc
+
+def resolve_city_for_year(winners, year, prov_cities=None):
     """Recover the town for one cycle's local winners from that year's LEC. Match on province +
-    position + surname + given, then surname alone within the province - the LEC is the same
-    winner list, so a surname unique to a province's winners is one person."""
+    position + surname + given, then surname alone within the province, then - because the 2004
+    List parses its province poorly - on surname + given nationwide, accepting the town only when
+    it lies in the winner's (reliable) province. The LEC is the same winner list, so a name unique
+    to a province, or nationwide, is one person."""
     recs = [r for r in lec_records(year) if r[2] in CITY_POS and r[1]]
-    exact, byprov = defaultdict(set), defaultdict(set)
+    exact, byprov, natl = defaultdict(set), defaultdict(set), defaultdict(set)
     for prov, city, pos, last, first, _mid, _sex in recs:
         cp, cc = cprov(prov), (canonical_city(city) or "").strip()
         if cc:
             exact[(cp, pos, fold(last), given(first))].add(cc)
             byprov[(cp, pos, fold(last))].add(cc)
-    exact = {k: next(iter(v)) for k, v in exact.items() if len(v) == 1}
-    byprov = {k: next(iter(v)) for k, v in byprov.items() if len(v) == 1}
+            natl[(fold(last), given(first))].add(cc)
+    u = lambda t: {k: next(iter(v)) for k, v in t.items() if len(v) == 1}
+    exact, byprov, natl = u(exact), u(byprov), u(natl)
+    if prov_cities is None:
+        prov_cities = _province_cities(winners)
     out = {}
     sub = winners[(winners["Year"] == str(year)) & winners["Position"].isin(CITY_POS)
                   & (winners["City"].astype(str).str.strip() == "")]
     for i, r in sub.iterrows():
         cp, pos, l, g = cprov(r["Province"]), r["Position"], fold(r["Last Name"]), given(r["First Name"])
         c = exact.get((cp, pos, l, g)) or byprov.get((cp, pos, l))
+        if not c:
+            nc = natl.get((l, g))
+            if nc and ccity(nc) in prov_cities.get(cp, ()):   # town must be in the winner's province
+                c = nc
         if c:
             out[i] = (c, "comelec_lec")
     return out
@@ -579,8 +600,9 @@ def apply_winners():
     W["Sex Source"] = ssrc
 
     # ---- City (2004-2013 local offices; the inherited source had no town) ----
+    prov_cities = _province_cities(W)
     for year in CITY_LEC_YEARS:
-        for i, (city, label) in resolve_city_for_year(W, year).items():
+        for i, (city, label) in resolve_city_for_year(W, year, prov_cities=prov_cities).items():
             r = W.loc[i]
             W.at[i, "City"] = city
             audit.append({"dataset": "winners", "year": year, "province": r["Province"],
