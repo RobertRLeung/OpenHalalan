@@ -362,10 +362,13 @@ def main():
     before = df["party"].nunique()
     df["party"] = df["party"].map(canonical_party)
 
-    # A party-list group has no party - it IS the party. Sources disagree on how to say
-    # so (GMA writes "GROUP", COMELEC leaves it empty); make it uniformly empty. The
-    # source's own value survives in reported_party.
-    df.loc[df["position"].isin(NON_PERSON_OFFICES), "party"] = None
+    # A party-list group has no party affiliation - it IS the party. Sources disagree on how to
+    # say so (GMA writes "GROUP", COMELEC leaves it empty), so set the party column uniformly to
+    # the group's own name, which is already in candidate_name (ballot number stripped). That
+    # keeps the column complete and groupable rather than a blank that reads as "independent".
+    # The source's raw value still survives in reported_party.
+    org = df["position"].isin(NON_PERSON_OFFICES)
+    df.loc[org, "party"] = df.loc[org, "candidate_name"]
 
     print(f"  parties canonicalised: {before} -> {df['party'].nunique()} distinct")
     print(f"  names canonicalised; {df['title'].astype(bool).sum():,} titles lifted out")
