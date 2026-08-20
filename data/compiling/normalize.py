@@ -442,6 +442,23 @@ PARTY_ALIASES = {
     "PDP-LABAN": "PDPLBN",
     "PDPLABAN": "PDPLBN",
 
+    # The 2010 COMELEC archive spells every party out in full; map the ones with a standard code
+    # to the same code the ballot cycles use, so 2010 unifies with the rest.
+    "PARTIDO DEMOKRATIKO PILIPINO LAKAS NG BAYAN": "PDPLBN",
+    "PWERSA NG MASANG PILIPINO": "PMP",
+    "NATIONALIST PEOPLES COALITION": "NPC",
+    "LABAN NG DEMOKRATIKONG PILIPINO": "LDP",
+    "KILUSANG BAGONG LIPUNAN": "KBL",
+    "ANG KAPATIRAN PARTY": "KPTRAN",
+    "AKSYON DEMOKRATIKO": "AKSYON",
+    "PARTIDO DEMOKRATIKO SOSYALISTA NG PILIPINAS": "PDSP",
+    "KABALIKAT NG MALAYANG PILIPINO": "KAMPI",
+    "PEOPLES REFORM PARTY": "PRP",
+    "PEOPLES CHAMP MOVEMENT": "PCM",
+    "BANGON PILIPINAS": "BANGON",
+    "BAGUMBAYAN-VNP": "BAGUMBAYAN",
+    "BAGUMBAYAN VNP": "BAGUMBAYAN",
+
     # An artefact of COMELEC's 30-character truncation, not a party.
     "(IND": "IND",
     "INDEPENDENT": "IND",

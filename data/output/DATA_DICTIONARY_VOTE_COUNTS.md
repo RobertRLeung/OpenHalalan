@@ -1,7 +1,7 @@
 # Data Dictionary — `NLE_Vote_Counts_2010-2025.csv.gz`
 
 Every candidate's votes, **winners and losers alike**, per city and municipality.
-**1,841,841 rows, 22 columns.** Gzipped (the uncompressed CSV is well above GitHub's 50 MB
+**2,087,226 rows, 22 columns.** Gzipped (the uncompressed CSV is well above GitHub's 50 MB
 file limit, hence the compression). `pandas.read_csv` opens it directly.
 
 Built from the per-municipality scrapes in `data/raw_data/`, which remain in the repo as
@@ -17,33 +17,44 @@ be checked against ballots.
 
 | Cycle | Rows | Municipality files | Source |
 |---|---|---|---|
-| 10 May 2010 | 119,929 | ~1,519 | Ianmaps Election Bank † |
+| 10 May 2010 | 365,314 | ~1,523 nat. / 1,057 local | COMELEC archive + Ianmaps † |
 | 13 May 2013 | 40,289 | ~1,498 | Rappler (archived) †† |
 | 9 May 2016 | 361,947 | 1,633 | GMA Eleksyon |
 | 13 May 2019 | 389,092 | 1,634 | ABS-CBN Halalan |
 | 9 May 2022 | 504,814 | 1,634 | COMELEC |
 | 12 May 2025 | 425,770 | 1,638 | COMELEC |
 
-> † The 2010 municipal results were shared from the **Ianmaps Election Bank**, compiled by
+> † 2010 is two sources. The archived **COMELEC/Smartmatic** per-municipality results
+> (`scrape_2010_comelec.py`, from the Internet Archive) carry every office — national AND local —
+> with party, for ~1,057 municipalities. The **Ianmaps Election Bank** — compiled by
 > **Ian ([@ian_maps](https://twitter.com/ian_maps))** and **Joseph Ricafort
-> ([@josephricafort](https://twitter.com/josephricafort))**. With thanks.
+> ([@josephricafort](https://twitter.com/josephricafort))**, with thanks — carries the national
+> races for more municipalities (~1,519) but no party, so it tops up the national coverage.
 >
 > †† 2013 is drawn from **two Rappler mirrors**: the `/2013/` pages (`scrape_2013_rappler.py`)
 > plus the `/2013`-content pages the site later served at `/2010/` URLs
 > (`scrape_2013_mirror.py`), which recover 65 municipalities — Ilocos Sur, Cagayan, Antique —
-> that `/2013/` never archived. (2010 itself stays national-only, above.)
+> that `/2013/` never archived.
 
 The 2016–2025 cycles each land on **1,634 Philippine cities and municipalities** (2025 adds
 the new BARMM Special Geographic Area municipalities), which is an independent check that
 none is missing localities. 2010 and 2013 are exceptions, described next.
 
-**2010 is a national-races-only cycle.** The source carries the presidential,
-vice-presidential and senatorial vote per city/municipality — and **no local offices** (no
-governor, mayor, House or council). Coverage is **~1,519 of 1,634 municipalities (93%)**.
-The source lists no party, so 2010's `party` is blank; percentage and rank are computed
-here (share of the locality's votes for that office; rank by votes within the locality).
-The national totals check out against the known result — Aquino wins the presidency, Binay
-edges Roxas for vice president, Revilla tops the Senate.
+**2010 is a partial cycle, reconstructed from the archived COMELEC results.** It now carries
+every office — president, VP, senator, party-list, and the **local** races (governor,
+vice-governor, board member, House, mayor, vice-mayor, councilor) — winners and losers, with
+party. Read it with its coverage in mind:
+
+- **National races** (president, VP, senator, party-list) cover **~1,523 of 1,634 municipalities
+  (93%)** — the union of the COMELEC archive and the Ianmaps tabulation.
+- **Local races** cover **~1,057 municipalities (65%)** — only where the Archive kept a
+  municipality page. The rest were not archived at that level.
+- `party` is populated (from the COMELEC archive; a national candidate's party is applied to the
+  Ianmaps-only municipalities too). Percentage and rank are computed here.
+
+Because coverage is partial and lower for the local races, do not treat 2010 totals as complete
+the way the 2016–2025 cycles are. Its national totals track the official result (Aquino wins the
+presidency, Binay the vice-presidency) at ~93% of the vote, the share of municipalities covered.
 
 **2013 is a partial cycle, reconstructed from Rappler's archived results.** Rappler's 2013
 live-results site is gone; the Internet Archive preserved ~91% of its municipality pages across two mirrors (see †† above), which is what this cycle is rebuilt from. Read it

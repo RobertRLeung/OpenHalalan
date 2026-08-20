@@ -209,34 +209,91 @@ def load_2013():
     return out
 
 
-def load_2010():
-    """2010 is a NATIONAL-race-only cycle here (president, vice president, senator), from the
-    Ianmaps municipal tabulation reshaped by parse_2010.py. COMELEC naming, computed rank/%.
-
-    Rappler's /2010/ pages are not used here: they hold 2013 content, not 2010. See
-    scrape_2013_mirror.py."""
+def _load_ianmaps_2010():
+    """The Ianmaps national tabulation: president/VP/senator per municipality, no party. Covers
+    more municipalities than the COMELEC archive does for the national races."""
     src = PROCESSED / "national_2010.csv"
     if not src.exists():
-        print("  (no national_2010.csv; skipping 2010)")
         return None
     d = pd.read_csv(src, dtype=str).fillna("")
     # NCR is filed as "NATIONAL CAPITAL REGION [- METRO MANILA]"; resolve_province needs
     # "METRO MANILA" to recover the district from the city (cf. PROV_SLUG_FIX for 2013).
     province = d["province"].str.replace(r"(?i)^national capital region.*", "METRO MANILA", regex=True)
-    out = pd.DataFrame({
+    return pd.DataFrame({
         "region": d["region"], "province": province, "city": d["city"],
         "position": [f"{p} of PHILIPPINES" for p in d["position"]],
-        # the source is mixed-case; upper-case it to match every other feed's ALL-CAPS
         "candidate_name": d["candidate_name"].str.upper(),
-        "party": "",                      # the national source carries no party affiliation
+        "party": "",
         "votes": pd.to_numeric(d["votes"], errors="coerce").fillna(0).astype(int),
     })
+
+
+def _load_comelec_2010():
+    """The archived COMELEC/Smartmatic per-municipality results (scrape_2010_comelec.py): every
+    office - national AND local - with party. The `office` column is the raw location-laden label
+    ("MAYOR of ABRA - BANGUED"), which split_position parses like any other feed."""
+    src = PROCESSED / "comelec_2010.csv.gz"
+    if not src.exists():
+        return None
+    c = pd.read_csv(src, dtype=str).fillna("")
+    # region isn't on the page; carry it over from Ianmaps' province -> region.
+    ian = pd.read_csv(PROCESSED / "national_2010.csv", dtype=str).fillna("") if (PROCESSED / "national_2010.csv").exists() else None
+    p2r = {}
+    if ian is not None:
+        for prov, reg in zip(ian["province"], ian["region"]):
+            p2r.setdefault(prov.upper(), reg)
+    return pd.DataFrame({
+        "region": [p2r.get(p.upper(), "") for p in c["province"]],
+        "province": c["province"], "city": c["city"], "position": c["office"],
+        "candidate_name": c["candidate_name"].str.upper(), "party": c["party"],
+        "votes": pd.to_numeric(c["votes"], errors="coerce").fillna(0).astype(int),
+    })
+
+
+def load_2010():
+    """2010 from two sources. The archived COMELEC/Smartmatic results carry every office
+    (national and LOCAL) with party but reach ~1,057 municipalities; the Ianmaps tabulation
+    reaches more for the national races but has no party. So: keep every Ianmaps national row and
+    attach the party a national candidate holds nationwide (taken from COMELEC), add all COMELEC
+    LOCAL and party-list rows, and let COMELEC's national rows fill municipalities Ianmaps missed.
+
+    Rappler's /2010/ pages are not used here: they hold 2013 content, not 2010. See
+    scrape_2013_mirror.py."""
+    ian = _load_ianmaps_2010()
+    com = _load_comelec_2010()
+    if com is None:
+        if ian is None:
+            print("  (no 2010 sources; skipping)")
+            return None
+        out = ian
+    else:
+        # A national candidate's party is constant everywhere, so learn it once from COMELEC.
+        NATIONAL_STR = com["position"].str.contains("PHILIPPINES")
+        cand_party = {}
+        for name, party in zip(com.loc[NATIONAL_STR, "candidate_name"], com.loc[NATIONAL_STR, "party"]):
+            cand_party.setdefault(name, party)
+        com_local = com[~NATIONAL_STR]                       # mayor/vice/councilor/gov/board/house
+        com_nat = com[NATIONAL_STR]                          # president/VP/senator/party-list
+        frames = [com_local, com_nat]
+        if ian is not None:
+            ian["party"] = [cand_party.get(n, "") for n in ian["candidate_name"]]
+            # Match on the CANONICAL locality, not the raw string: the two sources spell some
+            # towns differently, and a missed match would keep both national rows and double the
+            # votes. COMELEC (with party) wins the overlap; Ianmaps fills only the towns it lacks.
+            def _key(prov, city):
+                return (resolve_province(prov, city), canonical_city(city))
+            covered = {_key(p, c) for p, c in zip(com_nat["province"], com_nat["city"])}
+            keep = [_key(p, c) not in covered for p, c in zip(ian["province"], ian["city"])]
+            frames.append(ian[keep])
+        out = pd.concat(frames, ignore_index=True)
+
     race = ["province", "city", "position"]
     tot = out.groupby(race)["votes"].transform("sum")
     out["percentage"] = (100 * out["votes"] / tot.where(tot > 0)).round(2)
     out["rank"] = out.groupby(race)["votes"].rank(ascending=False, method="min").astype(int)
     out["year"] = 2010
-    print(f"  2010: national municipal results -> {len(out):,} rows")
+    munis = out[out["city"].astype(str).str.strip() != ""][["province", "city"]].drop_duplicates().shape[0]
+    print(f"  2010: {len(out):,} rows ({munis} municipalities; COMELEC archive + Ianmaps national)")
     return out
 
 
