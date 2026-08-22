@@ -1,7 +1,7 @@
 """
 Consolidate the per-municipality COMELEC scrapes into one published vote-counts dataset.
 
-  data/raw_data/{2022,2025}/**/*.csv  ->  data/output/NLE_Vote_Counts_2010-2025.csv.gz
+  data/raw_data/{2022,2025}/**/*.csv  ->  data/output/NLE_Vote_Counts_2007-2025.csv.gz
 
 One row per candidate per office per locality: every candidate, winners and losers alike.
 Place names are canonicalised so a locality keeps one key across cycles, and the office is
@@ -250,6 +250,88 @@ def _load_comelec_2010():
     })
 
 
+# Filipino surname particles a natural-order name keeps with the surname.
+_PARTICLES = {"de", "dela", "delos", "del", "los", "las", "san", "sta", "sto", "santa", "santo"}
+_SUFFIXES = {"JR", "SR", "II", "III", "IV", "V"}
+
+
+def _natural_to_comma(name):
+    """Wikipedia writes "First Middle Last"; the pipeline expects COMELEC's "LAST, FIRST". Best
+    effort - the surname is the last token, extended back over particles ("de los Santos")."""
+    name = re.sub(r"\s+", " ", str(name)).strip()
+    if "," in name or " " not in name:
+        return name
+    toks = name.split()
+    given_suffix = toks.pop() if toks[-1].rstrip(".").upper() in _SUFFIXES else ""
+    surname = [toks.pop()]
+    while toks and toks[-1].lower() in _PARTICLES:
+        surname.insert(0, toks.pop())
+    given = " ".join(toks + ([given_suffix] if given_suffix else []))
+    return f"{' '.join(surname)}, {given}".strip().strip(",")
+
+
+def _load_wikipedia(year):
+    """Executive races (governor/vice-governor/mayor/vice-mayor) from Wikipedia's per-province and
+    per-city articles (scrape_wikipedia_local.py). The office is already canonical and the locality
+    is a bare province or city; region is recovered later from the place. Drops within-file
+    duplicates where a race appears in both an umbrella and a per-locality article."""
+    src = PROCESSED / f"wikipedia_{year}.csv.gz"
+    if not src.exists():
+        return None
+    w = pd.read_csv(src, dtype=str).fillna("")
+    w["votes"] = pd.to_numeric(w["votes"], errors="coerce").fillna(0).astype(int)
+    w = (w.sort_values("votes", ascending=False)
+          .drop_duplicates(["province", "city", "position", "candidate_name"]))
+    # Place names must be upper-case to key against every other feed.
+    prov = w["province"].str.upper().str.strip()
+    city = w["city"].str.upper().str.strip()
+    # City articles carry no province; recover it from the town using the winners dataset as a
+    # nationwide city -> province authority. Match on the canonical city so ñ and "City" suffix
+    # spellings line up. A town name is unique enough that this is safe.
+    city2prov = _city_to_province()
+    prov = [p or city2prov.get(canonical_city(c), "") for p, c in zip(prov, city)]
+    out = pd.DataFrame({
+        "region": "", "province": prov, "city": city, "position": w["position"],
+        "candidate_name": [_natural_to_comma(n).upper() for n in w["candidate_name"]],
+        "party": w["party"], "votes": w["votes"],
+    })
+    # The same candidate can appear in both a province article and a city article with a slightly
+    # different name (a nickname in one). Same race + same surname + same votes is the same person;
+    # keep the fuller name. Genuinely tied rivals differ by surname, so they survive.
+    out["_sur"] = out["candidate_name"].str.split(",").str[0]
+    out = (out.assign(_len=out["candidate_name"].str.len())
+              .sort_values("_len", ascending=False)
+              .drop_duplicates(["province", "city", "position", "_sur", "votes"])
+              .drop(columns=["_sur", "_len"]))
+    return out
+
+
+def _city_to_province():
+    """CITY -> PROVINCE from the published winners dataset (its most common province per city)."""
+    src = OUTPUT / "NLE_Winners_2004-2025.csv"
+    if not src.exists():
+        return {}
+    win = pd.read_csv(src, dtype=str, usecols=["Province", "City"]).dropna()
+    win["City"] = win["City"].map(canonical_city)
+    win["Province"] = win["Province"].str.upper().str.strip()
+    win = win[(win["City"].fillna("") != "") & (win["Province"] != "")]
+    return (win.groupby("City")["Province"].agg(lambda s: s.mode().iloc[0])).to_dict()
+
+
+def load_2007():
+    """2007 exists only on Wikipedia (no COMELEC scrape). Governors for ~all provinces, plus the
+    cities and municipalities editors filled in."""
+    w = _load_wikipedia(2007)
+    if w is None:
+        print("  (no 2007 source; skipping)")
+        return None
+    w["year"] = 2007
+    munis = w[w["city"] != ""][["province", "city"]].drop_duplicates().shape[0]
+    provs = w[w["position"] == "GOVERNOR"]["province"].nunique()
+    print(f"  2007: {len(w):,} rows ({provs} provinces w/ governor, {munis} cities/municipalities; Wikipedia)")
+    return w
+
+
 def load_2010():
     """2010 from two sources. The archived COMELEC/Smartmatic results carry every office
     (national and LOCAL) with party but reach ~1,057 municipalities; the Ianmaps tabulation
@@ -287,6 +369,30 @@ def load_2010():
             frames.append(ian[keep])
         out = pd.concat(frames, ignore_index=True)
 
+    # Wikipedia fills local executive races the archive never captured, and repairs the few the
+    # archive kept only as a fragment (its Manila page tallies the mayor at 217 votes). Key each
+    # race on the canonical (province, city, office); add the ones the archive lacks, and where a
+    # race exists in both, let the MORE COMPLETE tally win - Wikipedia only displaces the archive
+    # when its total is far larger, so a normal archive race is never overwritten by a partial
+    # Wikipedia one.
+    wiki = _load_wikipedia(2010)
+    if wiki is not None:
+        def _rkey(prov, city, pos):
+            return (resolve_province(prov, city), canonical_city(city), split_position(pos)[0])
+        out["_k"] = [_rkey(p, c, pos) for p, c, pos in zip(out["province"], out["city"], out["position"])]
+        wiki["_k"] = [_rkey(p, c, pos) for p, c, pos in zip(wiki["province"], wiki["city"], wiki["position"])]
+        arch_tot = out.groupby("_k")["votes"].sum()
+        new = [k for k in wiki["_k"].unique() if k not in arch_tot.index]
+        wiki_tot = wiki.groupby("_k")["votes"].sum()
+        repair = [k for k in wiki_tot.index
+                  if k in arch_tot.index and wiki_tot[k] > 1.5 * arch_tot[k]]
+        take = set(new) | set(repair)
+        out = out[~out["_k"].isin(repair)]                   # drop the archive fragments we replace
+        added = wiki[wiki["_k"].isin(take)]
+        print(f"  2010: +{len(added):,} rows from Wikipedia "
+              f"({len(new)} new races, {len(repair)} archive fragments repaired)")
+        out = pd.concat([out, added], ignore_index=True).drop(columns="_k")
+
     race = ["province", "city", "position"]
     tot = out.groupby(race)["votes"].transform("sum")
     out["percentage"] = (100 * out["votes"] / tot.where(tot > 0)).round(2)
@@ -317,7 +423,7 @@ def load_year(year):
 def main():
     print("Loading raw scrapes:")
     frames = [load_year(y) for y in VOTE_COUNT_YEARS]
-    for extra in (load_2010(), load_2013()):
+    for extra in (load_2007(), load_2010(), load_2013()):
         if extra is not None:
             frames.append(extra)
     df = pd.concat(frames, ignore_index=True)

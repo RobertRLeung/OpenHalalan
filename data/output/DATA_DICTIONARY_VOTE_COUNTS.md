@@ -1,7 +1,7 @@
-# Data Dictionary — `NLE_Vote_Counts_2010-2025.csv.gz`
+# Data Dictionary — `NLE_Vote_Counts_2007-2025.csv.gz`
 
 Every candidate's votes, **winners and losers alike**, per city and municipality.
-**2,087,226 rows, 22 columns.** Gzipped (the uncompressed CSV is well above GitHub's 50 MB
+**2,088,099 rows, 22 columns.** Gzipped (the uncompressed CSV is well above GitHub's 50 MB
 file limit, hence the compression). `pandas.read_csv` opens it directly.
 
 Built from the per-municipality scrapes in `data/raw_data/`, which remain in the repo as
@@ -11,25 +11,33 @@ the raw record. Rebuild with `python run_all.py`.
 
 ## Coverage
 
-**Temporal. Six cycles: 2010, 2013, 2016, 2019, 2022 and 2025.** 2010 and 2013 are partial
-cycles (see below); before 2010 there are no vote counts, so 2001–2007 winners still cannot
-be checked against ballots.
+**Temporal. Seven cycles: 2007, 2010, 2013, 2016, 2019, 2022 and 2025.** 2007, 2010 and 2013
+are partial cycles (see below); before 2007 there are no vote counts, so 2001–2004 winners
+still cannot be checked against ballots.
 
 | Cycle | Rows | Municipality files | Source |
 |---|---|---|---|
-| 10 May 2010 | 365,314 | ~1,523 nat. / 1,057 local | COMELEC archive + Ianmaps † |
+| 14 May 2007 | 445 | 78 provinces / 38 towns | Wikipedia ‡ |
+| 10 May 2010 | 365,742 | ~1,523 nat. / 1,081 local | COMELEC archive + Ianmaps + Wikipedia † |
 | 13 May 2013 | 40,289 | ~1,498 | Rappler (archived) †† |
 | 9 May 2016 | 361,947 | 1,633 | GMA Eleksyon |
 | 13 May 2019 | 389,092 | 1,634 | ABS-CBN Halalan |
 | 9 May 2022 | 504,814 | 1,634 | COMELEC |
 | 12 May 2025 | 425,770 | 1,638 | COMELEC |
 
-> † 2010 is two sources. The archived **COMELEC/Smartmatic** per-municipality results
+> † 2010 is three sources. The archived **COMELEC/Smartmatic** per-municipality results
 > (`scrape_2010_comelec.py`, from the Internet Archive) carry every office — national AND local —
 > with party, for ~1,057 municipalities. The **Ianmaps Election Bank** — compiled by
 > **Ian ([@ian_maps](https://twitter.com/ian_maps))** and **Joseph Ricafort
 > ([@josephricafort](https://twitter.com/josephricafort))**, with thanks — carries the national
 > races for more municipalities (~1,519) but no party, so it tops up the national coverage.
+> **Wikipedia** (`scrape_wikipedia_local.py`) fills local executive races the archive never
+> captured and repairs the few it kept only as a fragment (its Manila page tallied the mayor at
+> 217 votes); where a race is in both, the more complete tally wins.
+>
+> ‡ 2007 exists only on **Wikipedia's** per-province and per-city articles
+> (`scrape_wikipedia_local.py`): the single-winner executive races (governor, vice-governor,
+> mayor, vice-mayor) with full candidate tallies and party. There is no COMELEC scrape for 2007.
 >
 > †† 2013 is drawn from **two Rappler mirrors**: the `/2013/` pages (`scrape_2013_rappler.py`)
 > plus the `/2013`-content pages the site later served at `/2010/` URLs
@@ -47,14 +55,21 @@ party. Read it with its coverage in mind:
 
 - **National races** (president, VP, senator, party-list) cover **~1,523 of 1,634 municipalities
   (93%)** — the union of the COMELEC archive and the Ianmaps tabulation.
-- **Local races** cover **~1,057 municipalities (65%)** — only where the Archive kept a
-  municipality page. The rest were not archived at that level.
-- `party` is populated (from the COMELEC archive; a national candidate's party is applied to the
-  Ianmaps-only municipalities too). Percentage and rank are computed here.
+- **Local races** cover **~1,081 municipalities (66%)** — the archive's municipality pages plus
+  the towns and city mayors Wikipedia adds. All 80 provinces carry a governor. The rest of the
+  country was not archived at that level.
+- `party` is populated (from the COMELEC archive and Wikipedia; a national candidate's party is
+  applied to the Ianmaps-only municipalities too). Percentage and rank are computed here.
 
 Because coverage is partial and lower for the local races, do not treat 2010 totals as complete
 the way the 2016–2025 cycles are. Its national totals track the official result (Aquino wins the
 presidency, Binay the vice-presidency) at ~93% of the vote, the share of municipalities covered.
+
+**2007 is a thin cycle from Wikipedia only.** It carries the single-winner executive races —
+governor (78 provinces), vice-governor, and the mayors/vice-mayors of the 38 cities and towns
+Wikipedia documents — every candidate, with votes and party. It has **no president, senator,
+party-list, council or board**, and its town coverage is a small fraction of the country. Use it
+for the offices and places it covers; do not treat it as a full cycle.
 
 **2013 is a partial cycle, reconstructed from Rappler's archived results.** Rappler's 2013
 live-results site is gone; the Internet Archive preserved ~91% of its municipality pages across two mirrors (see †† above), which is what this cycle is rebuilt from. Read it
@@ -74,10 +89,10 @@ with these limits in mind:
 Because 2013's races are not all per-locality and its coverage is 91%, do not treat its
 totals as complete the way the 2016–2025 cycles are.
 
-**This dataset is multi-source.** 2010 comes from the Ianmaps Election Bank, 2013 from
-Rappler, 2016 from GMA, 2019 from ABS-CBN, 2022 and 2025 from COMELEC. **No cycle is covered
-by more than one source**, so there are no cross-source conflicts to reconcile — but that
-changes the moment a second source is added for a cycle that already has one.
+**This dataset is multi-source.** 2007 from Wikipedia, 2010 from the COMELEC archive + Ianmaps +
+Wikipedia, 2013 from Rappler, 2016 from GMA, 2019 from ABS-CBN, 2022 and 2025 from COMELEC. Only
+2010 combines sources: they are merged on the canonical (province, city, office) so a race is
+never double-counted, and where two sources hold the same race the more complete tally wins.
 
 2016 also carries the **ARMM regional government** (`ARMM REGIONAL GOVERNOR`,
 `ARMM REGIONAL VICE GOVERNOR`, `ARMM ASSEMBLYMAN`), abolished when BARMM replaced ARMM in
@@ -108,7 +123,7 @@ municipality's file because national races are tallied locally.
 
 | Column | Type | Description |
 |---|---|---|
-| `year` | int | Election year: 2010, 2013, 2016, 2019, 2022 or 2025. |
+| `year` | int | Election year: 2007, 2010, 2013, 2016, 2019, 2022 or 2025. |
 | `region` | string | Canonical region. |
 | `province` | string | Canonical province or NCR district. |
 | `city` | string | Canonical city / municipality. The tally unit. |
@@ -116,7 +131,7 @@ municipality's file because national races are tallied locally.
 | `district` | string | The jurisdiction the seat is counted in: `LONE`, `FIRST`, `SECOND`, … and the named ones (`BABAK`, `KAPUTIAN`, `SAMAL`, `BACON`, `EAST`, `WEST`). Null for at-large seats. |
 | `raw_position` | string | The source's raw position string, kept verbatim for traceability. |
 | `candidate_name` | string | `SURNAME, FIRST MIDDLE` as reported. For 2016–2025 the ballot feeds omit the middle name; it is backfilled into `candidate_name` and `middle_name` from COMELEC's List of Elected Candidates + the v8.5 file where the candidate can be identified — every **winner** is matched to their own List record, and **losers** only where they won some other cycle. City-office middle coverage rises to ~48–51% overall (≈90% on the winner rows). Every filled cell is logged in [`data/audit/backfill_audit.csv`](../audit/backfill_audit.csv). |
-| `party` | string | Canonical party code, unified across cycles. `IND` = independent. Coalitions name each member, separated by `/`. Real mergers are not collapsed — see the winners dictionary. For **party-list** rows (and `BARMM PARTY REPRESENTATIVE`) there is no separate affiliation — the group *is* the candidate — so `party` is set to the group's own name, the same value as `candidate_name`. Populated for every office in 2013–2025; **2010 is blank** (that cycle is national-races-only, from a source that carried no party). |
+| `party` | string | Canonical party code, unified across cycles. `IND` = independent. Coalitions name each member, separated by `/`. Real mergers are not collapsed — see the winners dictionary. For **party-list** rows (and `BARMM PARTY REPRESENTATIVE`) there is no separate affiliation — the group *is* the candidate — so `party` is set to the group's own name, the same value as `candidate_name`. Populated for every office in 2007–2025 (2010 party comes from the COMELEC archive and Wikipedia; the Ianmaps-only national municipalities inherit each national candidate's party). |
 | `reported_party` | string | The source's raw party string, kept verbatim for traceability. |
 | `votes` | int | **Votes for this candidate in this locality.** The unit of the dataset. |
 | `percentage` | float | Share of the locality's votes for that office. Numeric (COMELEC's raw `"1.54 %"` string is parsed). |

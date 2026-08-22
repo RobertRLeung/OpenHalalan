@@ -40,7 +40,7 @@ import scrape_listelected as SL  # noqa: E402
 import fitz  # noqa: E402
 
 WINNERS = ROOT / "output" / "NLE_Winners_2004-2025.csv"
-VOTE_COUNTS = ROOT / "output" / "NLE_Vote_Counts_2010-2025.csv.gz"
+VOTE_COUNTS = ROOT / "output" / "NLE_Vote_Counts_2007-2025.csv.gz"
 V85 = ROOT / "source" / "political_dynasty_v8.5.csv"
 DILG_2025 = ROOT / "source" / "dilg_lgu_officials_2025.csv"
 AUDIT = ROOT / "audit" / "backfill_audit.csv"

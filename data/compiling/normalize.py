@@ -432,9 +432,14 @@ def canonical_full_name(last, first, middle):
 # ONLY spellings of the SAME entity are unified: "LAKAS CMD" is "LAKAS-CMD" with the
 # hyphen dropped, and that is the ONLY thing folded into it.
 PARTY_ALIASES = {
-    "LAKAS CMD": "LAKAS-CMD",       # punctuation only - NOT plain LAKAS
+    "LAKAS CMD": "LAKAS-CMD",       # punctuation only - NOT plain LAKAS, which stays its own code
+    # The 2010 "Lakas-Kampi" coalition is the Lakas-CMD lineage; the winners file has no bare
+    # "Lakas-Kampi", so folding it here can't split the two datasets.
+    "LAKAS-KAMPI": "LAKAS-CMD",
+    "LAKAS KAMPI": "LAKAS-CMD",
     "LAKAS KABALIKAT NG MALAYANG PILIPINO CHRISTIAN MUSLIM DEMOCRATS": "LAKAS-CMD",
 
+    "LIBERAL": "LP",
     "LIBERAL PARTY": "LP",
     "NACIONALISTA": "NP",
     "NACIONALISTA PARTY": "NP",
@@ -447,6 +452,7 @@ PARTY_ALIASES = {
     "PARTIDO DEMOKRATIKO PILIPINO LAKAS NG BAYAN": "PDPLBN",
     "PWERSA NG MASANG PILIPINO": "PMP",
     "NATIONALIST PEOPLES COALITION": "NPC",
+    "NATIONALIST PEOPLE'S COALITION": "NPC",
     "LABAN NG DEMOKRATIKONG PILIPINO": "LDP",
     "KILUSANG BAGONG LIPUNAN": "KBL",
     "ANG KAPATIRAN PARTY": "KPTRAN",
@@ -521,6 +527,7 @@ def canonical_party(label):
         return None
 
     text = re.sub(r"\s+", " ", str(label)).strip().upper()
+    text = text.replace("–", "-").replace("—", "-")  # en/em dash -> hyphen (Wikipedia)
     if not text:
         return None
 
